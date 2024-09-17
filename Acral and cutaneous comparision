@@ -1,0 +1,198 @@
+#----Acral and cutaneous comparision----- 
+#Data: Newell et al, 2020
+
+#----Data (counts)----
+setwd("/home/kcontrerasramirez/Desktop/Newell_paty_paper ")
+dir()
+raw_counts <- read.delim("Newell_et_al_2020_Acral_RNAseq.RSEM.ExpectedCounts.tsv", sep= "\t", header=T)
+dim(raw_counts)
+View(raw_counts)
+
+#Prepare raw data
+head(raw_counts)
+dim(raw_counts)
+raw_counts<-raw_counts[,-(2:8)]
+names(raw_counts)
+dim(raw_counts)
+View(raw_counts)
+names(raw_counts)
+
+#Check NAs
+#NA presence 
+any(is.na(raw_counts))
+
+#Clean up data
+rownames(raw_counts)<-raw_counts[,1]
+raw_counts<-raw_counts[,-1]
+raw_counts <- round(raw_counts)
+head(raw_counts)
+dim(raw_counts)
+View(raw_counts)
+
+#----Clinical data----
+clinicos<- read.csv("cd-22-0603_supp1.csv")
+head(clinicos)
+View(clinicos)
+names(clinicos)
+
+#filter
+library(dplyr)
+clinicos2<- select(clinicos, Donor, Subtype, Published_Newell_2020, TCGA.Category)
+View(clinicos2)
+dim(clinicos2)
+
+#filter only acral tumours
+clinicos_acrales<- clinicos2%>%
+  filter(Subtype== "Acral")
+View(clinicos_acrales)
+names(clinicos_acrales)
+
+#Replace NF1 with WT
+clinicos_acrales<-clinicos_acrales%>%
+  mutate(mutation=case_when(TCGA.Category=="NF1" ~ "WT",
+                            TCGA.Category=="triple-WT" ~ "WT",
+                            TCGA.Category=="BRAF" ~ "BRAF",
+                            TCGA.Category=="RAS" ~ "NRAS"
+  ))
+View(clinicos_acrales)
+dim(clinicos_acrales)
+
+#---Table for comparison----
+condition= c(rep(1,31),c(rep(2,32)))
+condition<-factor(condition)
+sample_table <- data.frame(samplename=colnames(raw_counts), condition=condition)
+head(sample_table)
+sample_table$condition <- factor(sample_table$condition)
+head(sample_table)
+dim(raw_counts)
+dim(sample_table)
+View(sample_table)
+View(raw_counts)
+
+#----Prepare DDS object----
+library(DESeq2)
+dds <- DESeqDataSetFromMatrix(countData = raw_counts, colData = sample_table, design = ~condition)
+
+#----Normalisation----
+dds<-estimateSizeFactors(dds)
+normalised <- counts(dds,normalized=TRUE)
+View(normalised)
+dim(normalised)
+
+#-----Logarithmic adjustment of DDS object (VDS)----
+vds<-vst(dds, blind = FALSE)
+normalizedcounts<-assay(vds)
+View(normalizedcounts)
+dim(normalizedcounts)
+
+#----Filter genes----
+genes<- read.csv("cmel_vmel_genes_mex_acrals_2.csv")
+head(genes)
+dim(genes)
+View(genes)
+View(normalizedcounts)
+normalisedgenes<-normalizedcounts[rownames(normalizedcounts) %in% genes$Gene.stable.ID ,]
+dim(normalisedgenes)
+View(normalisedgenes)
+rownames(normalisedgenes)
+
+#----Filter clinical data-----
+head(clinicos_acrales)
+View(clinicos_acrales)
+head(normalisedgenes)
+clinicos_acrales <- clinicos_acrales[clinicos_acrales$Donor %in% colnames(normalisedgenes), ]
+clinicos_acrales
+dim(clinicos_acrales)
+dim(normalisedgenes)
+head(clinicos_acrales)
+
+#----Filter by mutation----
+braf<- clinicos_acrales%>%
+  filter(mutation == "BRAF")
+dim(braf)
+
+nras<- clinicos_acrales%>%
+  filter(mutation == "NRAS")
+dim(nras)
+
+wt<- clinicos_acrales%>%
+  filter(mutation == "WT")
+dim(wt)
+
+dim(raw_counts)
+
+#----Calculate ratios-----
+#Generate subset of acral (AM) an cutaneous (CM) genes
+genes
+cutaneos<- subset(genes, Type== "CM")
+cutaneos
+dim(cutaneos)
+acral<- subset(genes, Type== "AM")
+acral
+dim(acral)
+
+#Table with only 20 genes and normalized counts
+normalisedsamples<-normalisedgenes
+head(normalisedsamples)
+View(normalisedsamples)
+dim(normalisedsamples)
+
+#cutaneos
+cutaneoussamples<-normalisedsamples[ rownames(normalisedsamples) %in% cutaneos$Gene.stable.ID ,]
+dim(cutaneoussamples)
+head(cutaneoussamples)
+View(cutaneoussamples)
+
+#product
+productcolumncutaneo<- apply(cutaneoussamples,2,prod)
+productcolumncutaneo
+
+#acral
+acralsamples<-normalisedsamples[ rownames(normalisedsamples) %in% acral$Gene.stable.ID ,]
+dim(acralsamples)
+View(acralsamples)
+genes
+
+#product
+productcolumnacral<- apply(acralsamples,2,prod)
+productcolumnacral
+
+#---ratio----
+ratio<- productcolumnacral/productcolumncutaneo
+ratio
+
+#----Extraction of BRAF ratios----
+head(braf)
+braf_values <- ratio[names(ratio) %in% braf$Donor]
+length(braf_values)
+braf_values
+
+#----Extraction of WT for NRAS and BRAF-----
+#WT
+wt_braf <- ratio[(names(ratio) %in% wt$Donor)]
+length(wt_braf)
+wt_braf
+
+#wilcoxon test
+wilcox.test(braf_values, wt_braf, alternative = "less")
+
+#NRAS ---- They are all RAS genes.
+head(nras)
+dim(nras)
+nras_values <- ratio[names(ratio) %in% nras$Donor]
+length(nras_values)
+nras_values
+
+#wilcoxon test
+wilcox.test(nras_values, wt_braf, alternative = "less")
+
+#--- BRAF VS WT Y RAS
+length(braf_values)
+braf_values
+
+wt_solobraf<- ratio[!(names(ratio) %in% braf$Donor)]
+length(wt_solobraf)
+wt_solobraf
+
+#wilcoxon test
+wilcox.test(braf_values, wt_solobraf, alternative = "less")
