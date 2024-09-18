@@ -1,7 +1,7 @@
 #----Acral and cutaneous comparison----- 
 #Data: Newell et al, 2020
 #Author: Kenya Lizbeth Contreras Ramirez
-#Row counts data: Newell_et_al_2020_Acral_RNAseq.RSEM.ExpectedCounts.tsv
+#Raw counts data: Newell_et_al_2020_Acral_RNAseq.RSEM.ExpectedCounts.tsv
 #Clinical data: cd-22-0603_supp1.csv
 #Genes: cmel_vmel_genes_mex_acrals_2.csv
 
