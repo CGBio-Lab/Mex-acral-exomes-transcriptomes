@@ -1,9 +1,12 @@
-#----Acral and cutaneous comparision----- 
+#----Acral and cutaneous comparison----- 
 #Data: Newell et al, 2020
-#Author: Kenya Contreras
+#Author: Kenya Lizbeth Contreras Ramirez
+#Row counts data: Newell_et_al_2020_Acral_RNAseq.RSEM.ExpectedCounts.tsv
+#Clinical data: cd-22-0603_supp1.csv
+#Genes: cmel_vmel_genes_mex_acrals_2.csv
 
 #----Data (counts)----
-setwd("/home/kcontrerasramirez/Desktop/Newell_paty_paper ")
+getwd()
 dir()
 raw_counts <- read.delim("Newell_et_al_2020_Acral_RNAseq.RSEM.ExpectedCounts.tsv", sep= "\t", header=T)
 dim(raw_counts)
@@ -16,7 +19,6 @@ raw_counts<-raw_counts[,-(2:8)]
 names(raw_counts)
 dim(raw_counts)
 View(raw_counts)
-names(raw_counts)
 
 #Check NAs
 #NA presence 
@@ -33,7 +35,6 @@ View(raw_counts)
 #----Clinical data----
 clinicos<- read.csv("cd-22-0603_supp1.csv")
 head(clinicos)
-View(clinicos)
 names(clinicos)
 
 #filter
@@ -135,7 +136,6 @@ dim(acral)
 #Table with only 20 genes and normalized counts
 normalisedsamples<-normalisedgenes
 head(normalisedsamples)
-View(normalisedsamples)
 dim(normalisedsamples)
 
 #cutaneos
@@ -168,26 +168,7 @@ braf_values <- ratio[names(ratio) %in% braf$Donor]
 length(braf_values)
 braf_values
 
-#----Extraction of WT for NRAS and BRAF-----
-#WT
-wt_braf <- ratio[(names(ratio) %in% wt$Donor)]
-length(wt_braf)
-wt_braf
-
-#wilcoxon test
-wilcox.test(braf_values, wt_braf, alternative = "less")
-
-#NRAS ---- They are all RAS genes.
-head(nras)
-dim(nras)
-nras_values <- ratio[names(ratio) %in% nras$Donor]
-length(nras_values)
-nras_values
-
-#wilcoxon test
-wilcox.test(nras_values, wt_braf, alternative = "less")
-
-#--- BRAF VS WT Y RAS
+#--- Extraction of WT ratios----
 length(braf_values)
 braf_values
 
@@ -195,5 +176,6 @@ wt_solobraf<- ratio[!(names(ratio) %in% braf$Donor)]
 length(wt_solobraf)
 wt_solobraf
 
-#wilcoxon test
+#---wilcoxon test----
 wilcox.test(braf_values, wt_solobraf, alternative = "less")
+
