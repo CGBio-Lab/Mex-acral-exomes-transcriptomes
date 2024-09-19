@@ -1,0 +1,168 @@
+#Acral and cutaneous comparison Mexican data
+#Data: Mexican data of acral melanoma 
+#Raw count data: 5823_2677_Acral_lentigious_melanoma_RNAseq_GRCh38_remap_HTSeq_Sreverse_STAR_ENSv103_ERCC_RAW_frag_counts_sample_supplier_name_IDs.tsv
+#Clinical data and Mutational status: One_per_patient_primaries_intersected_tumor_type_mut_status_all_rna.csv
+#Genes:mart_export (15).txt
+#Batches for comparison: Batches_rna.csv
+#Author: Kenya Lizbeth Contreras Ramírez 
+
+#---load libraries----
+library(DESeq2)
+
+#----Data (counts)----
+setwd("/home/kcontrerasramirez/Desktop/Newell_paty_paper /Mexican_data_acral_metanoma")
+raw_counts <- read.table("5823_2677_Acral_lentigious_melanoma_RNAseq_GRCh38_remap_HTSeq_Sreverse_STAR_ENSv103_ERCC_RAW_frag_counts_sample_supplier_name_IDs.tsv", header=TRUE)
+
+#---Mutational status data---
+idfiltrar<- read.csv("One_per_patient_primaries_intersected_tumor_type_mut_status_all_rna.csv" )
+head(idfiltrar)
+
+#----Prepare raw data----
+head(raw_counts)
+dim(raw_counts)
+names(raw_counts)
+rownames(raw_counts)<-raw_counts[,1]
+head(raw_counts)
+raw_counts<-raw_counts[,-1]
+head(raw_counts)
+dim(raw_counts)
+View(raw_counts)
+
+#----Filter 80 samples---
+names(idfiltrar)
+dim(idfiltrar)
+raw_counts<-raw_counts[,colnames(raw_counts) %in% idfiltrar$Sample_name]
+dim(raw_counts)
+
+#---Table for comparison----
+batches<- read.csv("Batches_rna.csv")
+batches
+dim(batches)
+names(batches)
+dim(batches)
+names(batches)
+View(batches)
+
+#---Build sampleTable----
+condition= batches$Batch
+condition
+length(condition)
+sample_table <- data.frame(samplename=colnames(raw_counts), condition= condition)
+head(sample_table)
+sample_table$condition <- factor(sample_table$condition)
+head(sample_table)
+dim(raw_counts)
+dim(sample_table)
+
+#----Prepare DDS object----
+dds <- DESeqDataSetFromMatrix(countData = raw_counts, colData = sample_table, design = ~condition)
+
+#----Normalisation----
+dds<-estimateSizeFactors(dds)
+normalised <- counts(dds,normalized=TRUE)
+View(normalised)
+
+#-----Logarithmic adjustment of DDS object (VDS)----
+vds<-vst(dds, blind = FALSE)
+normalizedcounts<-assay(vds)
+View(normalizedcounts)
+
+#---Genes of interest----
+genes<- read.table("mart_export (15).txt", sep = "\t", header = T)
+head(genes)
+dim(genes)
+View(genes)
+normalisedgenes<-normalizedcounts[rownames(normalizedcounts) %in% genes$Gene.stable.ID ,]
+dim(normalisedgenes)
+View(normalisedgenes)
+
+#----Table for assigning groups to genes (Acral (A) or Cutaneous (C))---
+group<- c( "C", "A", "C", "A", "A", "A", "C", "A", "A","C","C","A","C","C","C","A","A","C","A","C")
+length(group)
+genes<-filter(genes, Gene.stable.ID!= "ENSG00000283060")
+genes
+genes<-cbind(genes, group=group)
+genes
+
+#----Assign the mutational status table as the clinical data table---- 
+clinical<-idfiltrar
+dim(clinical)
+names(clinical)
+
+#---Filter columns of interest---
+clinical2<-select(clinical, Sample_name, BRAF_status, NRAS_status, Mutation_status)
+head(clinical2)
+View(clinical2)
+dim(clinical2)
+
+#----Filter by mutation----
+braf<- clinical2%>%
+  filter(BRAF_status == "Missense")
+dim(braf)
+nras<- clinical2%>%
+  filter(NRAS_status == "Missense")
+dim(nras)
+
+#----Calculate ratios-----
+#Generate subset of acral (AM) an cutaneous (CM) genes
+cutaneos<- subset(genes, group== "C")
+cutaneos
+acral<- subset(genes, group== "A")
+acral
+
+#Table with only 21 genes and normalized counts
+normalisedsamples<-normalisedgenes
+head(normalisedsamples)
+View(normalisedsamples)
+
+#cutaneous
+cutaneoussamples<-normalisedsamples[ rownames(normalisedsamples) %in% cutaneos$Gene.stable.ID ,]
+dim(cutaneoussamples)
+head(cutaneoussamples)
+#product
+productcolumncutaneo<- apply(cutaneoussamples,2,prod)
+
+#acrals
+acralsamples<-normalisedsamples[ rownames(normalisedsamples) %in% acral$Gene.stable.ID ,]
+dim(acralsamples)
+#product
+productcolumnacral<- apply(acralsamples,2,prod)
+productcolumnacral
+
+#---ratio----
+ratio<- productcolumnacral/productcolumncutaneo
+ratio
+
+#----Extraction of BRAF ratios----
+head(braf)
+braf_values <- ratio[names(ratio) %in% braf$Sample_name]
+length(braf_values)
+braf_values
+
+#----Extraction of WT for BRAF ratios----
+wt_braf <- ratio[!(names(ratio) %in% braf$Sample_name)]
+length(wt_braf)
+wt_braf
+
+#----wilcoxon test----
+wilcox.test(braf_values, wt_braf, alternative = "less")
+
+#----Extraction of NRAS ratios----
+head(nras)
+dim(nras)
+nras_values <- ratio[names(ratio) %in% nras$Sample_name]
+length(nras_values)
+nras_values
+
+#----Extraction of WT for NRAS ratios----
+wt_nras <- ratio[!(names(ratio) %in% nras$Sample_name)]
+length(wt_nras)
+wt_nras
+
+#----Filter the NRAS----
+names(braf)
+wt_braf<- wt_nras[!(names(wt_nras) %in% braf$Sample_name)]
+length(wt_braf)
+
+#----wilcoxon test----
+wilcox.test(braf_values, wtsinnras, alternative = "less")
