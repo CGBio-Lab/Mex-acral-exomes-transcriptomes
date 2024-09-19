@@ -1,0 +1,294 @@
+---
+title: "acralMX_consensus_clustering"
+author: "Estef Vazquez"
+output:
+  html_document:
+    theme: simplex
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+## Consensus Clustering
+
+```{r}
+#Load libraries
+library(tidyverse)
+library(cola)
+library(RColorBrewer)
+library(colorRamp2)
+library(ComplexHeatmap)
+library(circlize)
+library(digest)
+library(cluster)
+
+# Load expression data 
+mt <- readRDS("acralMX_expression_data.rds")
+
+# Load metadata
+metadata <- read_csv("acralMX_metadata_cc.csv")
+
+# Select columns and make factor
+metadata <- as.data.frame(metadata)
+anno <- metadata %>% select(ID, TMB, Whole_Genome_Duplication) %>% 
+                     mutate(Whole_Genome_Duplication = as.factor(Whole_Genome_Duplication)) %>% 
+                     glimpse()
+
+# Make rownames
+rownames(anno) <- anno$ID
+anno <- anno[,-1]
+
+# Colors 
+colors <- list('Whole_genome_duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
+               'TMB' = colorRamp2(c(0, 600), c("white", "red")))
+
+
+####--- Check dimensions for cola
+dim(mt)
+dim(muestras_anno)
+
+# Run all partition methods 
+consensus_results = run_all_consensus_partition_methods(mt, anno = muestras_anno, anno_col = colors)
+
+# Or load the precomputed results object
+#consensus_results <- readRDS("consensus_results.rds")
+
+# Write report and analyze data - metrics and visual inspection of clusters for each k
+cola_report(consensus_results, output_dir= "/home/user/Documents/ConsensusClustering")
+
+# Stats table
+get_stats(consensus_results, k = 3)
+
+# Consensus heatmap
+consensus_heatmap(consensus_results["SD:pam"], k = 3)
+
+# Visualize classes 
+collect_classes(consensus_results["SD:pam"])
+
+# PCA
+dimension_reduction(SD_PAM_K3, k = 3, method = "PCA")
+
+# Test factors - TMB and WGD
+test_to_known_factors(consensus_results)
+
+# Plot membership heatmap
+membership_heatmap(SD_PAM_K3, k = 3)
+
+# Extract results for the best performing combination of methods (top-value and partitioning)
+SD_PAM_K3 = consensus_results["SD", "pam"]
+
+# Extracting classification
+classification <- cbind(get_classes(consensus_results["SD:pam"], k = 3), get_membership(consensus_results["SD:pam"], k = 3))
+
+# Write to file
+write.table(classification, file = "cc_classification.tsv", sep = "\t",  col.names=NA)
+
+# Fix levels for visualization 
+split <- factor(paste0("Cluster\n", classification$class), levels=c("Cluster\n1","Cluster\n2","Cluster\n3"))
+
+# Signatures that are significantly different between subgroups
+DE_signatures <- get_signatures(SD_PAM_K3, k = 3)
+
+# Write to file
+write.csv(DE_signatures, "signatures.csv")
+
+# Enrichment analysis 
+head(rownames(SD_PAM_K3)) 
+enrichment_results = functional_enrichment(SD_PAM_K3, k = 3, ontology = c("BP", "MF", "CC"))
+names(enrichment_results)
+head(enrichment_results[[1]], 50) 
+
+# Extracting signatures
+mt_genes <- rownames(SD_PAM_K3)
+sig_index <- DE_signatures$which_row
+df <- data.frame(chr=SD_PAM_K3@top_value_list, stringsAsFactors=FALSE)
+gene_list <- rownames_to_column(df, var = "ensembl")
+gene_signature <- gene_list[sig_index,]
+gene_signature <- gene_signature[,-2]
+subset_signature <- mt[rownames(mt) %in% gene_signature, ]  
+head(subset_signature)
+dim(subset_signature)
+
+# Saving object
+saveRDS(subset_signature, "DE_gene_signature.rds")
+
+####--- Creating heatmap
+# Z-scores 
+data_subset_signatures_z <- t(scale(t(subset_signature)))
+
+# Alternatively, load the already computed z-score matrix
+data_subset_signatures_z <- readRDS("data_subset_signatures_z.rds")
+
+# Metadata 
+metadata <- read_csv("acralMX_metadata_cc.csv")
+
+# Rownames
+rownames(metadata) <- metadata$ID
+metadata <- metadata[,-1]
+
+# Reorder and make factors 
+metadata_ht <- metadata %>% select(BRAF, NRAS, KIT, NF1, Whole_Genome_Duplication, TMB, Ulceration, Breslow, Age, Sex, Stage) %>%
+                            mutate(across(c(Stage, Sex, Ulceration, Whole_Genome_Duplication, NF1, KIT, NRAS, BRAF), as.factor),
+                                   across(where(is.numeric), as.numeric)) %>% 
+                            glimpse()
+
+# Transposed matrix 
+signature_ht_t <- t(data_subset_signatures_z)
+
+# Or load the already computed object 
+#signature_ht_t <- readRDS("transposed_signature_ht.rds")
+#dim(signature_ht_t)
+
+```
+
+## Heatmap visualization
+
+```{r}
+ht_opt$ANNOTATION_LEGEND_PADDING = unit(2, "cm")
+ht_opt$HEATMAP_LEGEND_PADDING = unit(3, "cm")
+
+# Samples for visualization
+samples_ht <- c("PR51978a", "PR51948a", "PR40984a", "PR40966a", "PR41905a", "PR41916a", "PR51951a", "PR40963a", "PR41929d", "PR41045a", "PR41030a", "PR41928d", "PR51928a", "PR41017a", "PR41901a", "PR40985a", "PR41044a", "PR51932a", "PR41011a", "PR41930d", "PR41917a", "PR40989a", "PR41927d", "PR40971a", "PR40962a", "PR40961a", "PR41920a","PR40967a", "PR40996a",  "PR40994a", "PR41020a", "PR40997a", "PR41921a", "PR51979a", "PR51956a", "PR40968a", "PR41002a", "PR41913a", "PR40969a", "PR41025a", "PR40988a", "PR41035a", "PR40970a", "PR40990a", "PR41023f", "PR40986a", "PR41912a")
+
+# Color functions and breaks
+col_fun_tmb = colorRamp2(c(86,310,535), c("white", "#fdf542", "#ff0000"))
+col_fun_bres = colorRamp2(c(0,15,30), c("white", "#fdf542", "#ff0000"))
+col_fun_age = colorRamp2(c(32,60,88), c("white", "#fdf542", "#ff0000"))
+mycol <- colorRampPalette(c('green', 'black', 'purple'))(100)
+mybreaks <- seq(-2, 2, length.out = 100) 
+
+colors <- list('BRAF' = c('Missense' = 'red', 'Non_mutated' = 'blue4'),
+               'NRAS' = c('Missense' = 'olivedrab', 'Non_mutated' = 'orange'), 
+               'KIT' = c('Missense' = '#3F007D', 'no-SNV' = 'yellow', 'Non_mutated' = '#CC0066'),
+               'NF1' = c("Nonsense" = "#CB181D", 'no-SNV' = '#74a9cf', 'Non_mutated' = 'pink'),
+               'Whole_Genome_Duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
+               'TMB' = col_fun_tmb,
+               'Ulceration' = c('yes' = '#00441B', 'no' = '#74a9cf'),
+               'Breslow' = col_fun_bres,
+               'Age' = col_fun_age,
+               'Sex' = c('female' = 'blue', 'male' = '#241178'),
+               'Stage' = c('0' = '#FFFFCC', '1' = '#FFFF66', '2' = '#FF9900', '3' = 'red', '4' = "gray"))
+
+# Annotations
+colAnn <- HeatmapAnnotation(
+  df = metadata_ht,
+  which = 'col', 
+  na_col = "black", 
+  col = colors,
+  simple_anno_size = unit(1.4, "cm"),
+  annotation_width = unit(c(1, 11), 'cm'),
+  gap = unit(1.5, 'mm'),
+  annotation_height = unit(c(1, 17), 'cm'),
+  annotation_name_gp = gpar(fontsize = 21),
+  annotation_name_align = TRUE,
+  annotation_name_side = 'left',
+  annotation_legend_param = list(
+      BRAF = list(
+        #nrow = 2, 
+        title = 'BRAF',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      NRAS = list(
+        #nrow = 2,
+        title = 'NRAS',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      KIT = list(
+        #nrow = 3,
+        title = 'KIT',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      NF1 = list(
+        #nrow = 3,
+        title = 'NF1',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      Whole_Genome_Duplication = list(
+        #nrow = 2,
+        title = 'WGD',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      TMB = list(
+        #nrow = 2,
+        title = 'TMB',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      Age = list(
+        #nrow = 2,
+        title = 'Age',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      Sex = list(
+        #nrow = 2,
+        title = 'Sex',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      Breslow = list(
+        #nrow = 2,
+        title = 'Breslow',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      Ulceration = list(
+        #nrow = 3,
+        title = 'Ulceration',
+        at = c("yes", "no"),
+        labels = c("Yes", "No"),
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32)),
+      Stage = list(
+        #nrow = 4,
+        title = 'Stage',
+        title_gp = gpar(fontsize = 32, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 32))))
+      
+# Gene labels
+genelabels <- rowAnnotation(
+  Genes = anno_mark(
+    at = seq(1, nrow(data_subset_signatures_z), 100),
+    labels = rownames(data_subset_signatures_z)[seq(1, nrow(data_subset_signatures_z), 100)],
+    labels_gp = gpar(fontsize = 32),
+    padding = 1),
+    width = unit(14.0, 'cm') + 
+    max_text_width(
+  rownames(data_subset_signatures_z)[seq(1, nrow(data_subset_signatures_z), 100)],
+  gp = gpar(fontsize= 32, fontface = 'bold')))
+
+
+# Save and visualize 
+set.seed(123)
+png(height=3100, width=3100, file="heatmap.png", type = "cairo")
+
+ht <- ComplexHeatmap::Heatmap(data_subset_signatures_z,
+                                      column_split=split, 
+                                      raster_by_magick = FALSE,
+                                      column_order = samples_ht, 
+                                      top_annotation = colAnn,
+                                      column_names_gp = grid::gpar(fontsize = 20, fontface = 'bold'),
+                                      column_gap = unit(5, "mm"), 
+                                      show_column_dend = TRUE,
+                                      column_dend_height = unit(17,'cm'),
+                                      show_row_names = FALSE,
+                                      show_row_dend = FALSE,
+                                      cluster_rows = TRUE,
+                                      clustering_distance_rows = "euclidean", 
+                                      clustering_method_rows = "ward.D2", 
+                                      name = 'Z-score',
+                                      col = colorRamp2(mybreaks, mycol),
+                                      heatmap_legend_param = list(
+                                        color_bar = 'continuous',
+                                        legend_direction = 'vertical',
+                                        legend_width = unit(30, 'cm'),
+                                        legend_height = unit(25, 'cm'),
+                                        at = c(-3, 0, 3),
+                                        title_gp=gpar(fontsize = 50),
+                                        labels_gp=gpar(fontsize = 50)))
+
+ht = draw(ht)
+dev.off()
+```
+
+**Reference**
+
+-   Gu Z, Schlesner M, Hübschmann D. cola: an R/Bioconductor package for consensus partitioning through a general framework. Nucleic Acids Res. 2021 Feb 22;49(3):e15. doi: 10.1093/nar/gkaa1146. PMID: 33275159; PMCID: PMC7897501.
+
+-   Gu Z, Eils R, Schlesner M. Complex heatmaps reveal patterns and correlations in multidimensional genomic data. Bioinformatics. 2016 Sep 15;32(18):2847-9. doi: 10.1093/bioinformatics/btw313. Epub 2016 May 20. PMID: 27207943.
