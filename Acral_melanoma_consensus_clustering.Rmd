@@ -45,7 +45,7 @@ colors <- list('Whole_genome_duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'c
 
 ####--- Check dimensions for cola
 dim(mt)
-dim(muestras_anno)
+dim(anno)
 
 # Run all partition methods 
 consensus_results = run_all_consensus_partition_methods(mt, anno = muestras_anno, anno_col = colors)
@@ -56,7 +56,7 @@ consensus_results = run_all_consensus_partition_methods(mt, anno = muestras_anno
 # Write report and analyze data - metrics and visual inspection of clusters for each k
 cola_report(consensus_results, output_dir= "/home/user/Documents/ConsensusClustering")
 
-# Stats table
+# Stats 
 get_stats(consensus_results, k = 3)
 
 # Consensus heatmap
@@ -80,16 +80,16 @@ SD_PAM_K3 = consensus_results["SD", "pam"]
 # Extracting classification
 classification <- cbind(get_classes(consensus_results["SD:pam"], k = 3), get_membership(consensus_results["SD:pam"], k = 3))
 
-# Write to file
+# Write file
 write.table(classification, file = "cc_classification.tsv", sep = "\t",  col.names=NA)
 
 # Fix levels for visualization 
 split <- factor(paste0("Cluster\n", classification$class), levels=c("Cluster\n1","Cluster\n2","Cluster\n3"))
 
-# Signatures that are significantly different between subgroups
+# Signatures 
 DE_signatures <- get_signatures(SD_PAM_K3, k = 3)
 
-# Write to file
+# Write file
 write.csv(DE_signatures, "signatures.csv")
 
 # Enrichment analysis 
@@ -116,13 +116,10 @@ saveRDS(subset_signature, "DE_gene_signature.rds")
 # Z-scores 
 data_subset_signatures_z <- t(scale(t(subset_signature)))
 
-# Alternatively, load the already computed z-score matrix
-data_subset_signatures_z <- readRDS("data_subset_signatures_z.rds")
+# Or load the precomputed z-score matrix
+#data_subset_signatures_z <- readRDS("data_subset_signatures_z.rds")
 
-# Metadata 
-metadata <- read_csv("acralMX_metadata_cc.csv")
-
-# Rownames
+# Rownames metadata
 rownames(metadata) <- metadata$ID
 metadata <- metadata[,-1]
 
@@ -131,13 +128,6 @@ metadata_ht <- metadata %>% select(BRAF, NRAS, KIT, NF1, Whole_Genome_Duplicatio
                             mutate(across(c(Stage, Sex, Ulceration, Whole_Genome_Duplication, NF1, KIT, NRAS, BRAF), as.factor),
                                    across(where(is.numeric), as.numeric)) %>% 
                             glimpse()
-
-# Transposed matrix 
-signature_ht_t <- t(data_subset_signatures_z)
-
-# Or load the already computed object 
-#signature_ht_t <- readRDS("transposed_signature_ht.rds")
-#dim(signature_ht_t)
 
 ```
 
