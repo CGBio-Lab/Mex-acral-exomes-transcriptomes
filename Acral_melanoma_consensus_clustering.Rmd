@@ -1,5 +1,5 @@
 ---
-title: "acralMX_consensus_clustering"
+title: "Acral melanoma consensus clustering"
 author: "Estef Vazquez"
 output:
   html_document:
@@ -9,7 +9,7 @@ output:
       collapsed: true
 ---
 
-## Consensus Clustering
+## Clustering and signature analysis
 
 ```{r}
 #Load libraries
@@ -19,26 +19,24 @@ library(RColorBrewer)
 library(colorRamp2)
 library(ComplexHeatmap)
 library(circlize)
-library(digest)
-library(cluster)
 
-# Load expression data 
+
+# Load data 
 mt <- readRDS("acralMX_expression_data.rds")
-
-# Load metadata
 metadata <- read_csv("acralMX_metadata_cc.csv")
 
-# Select columns and make factor
-metadata <- as.data.frame(metadata)
-anno <- metadata %>% select(ID, TMB, Whole_Genome_Duplication) %>% 
-                     mutate(Whole_Genome_Duplication = as.factor(Whole_Genome_Duplication)) %>% 
-                     glimpse()
 
-# Make rownames
+# Prepare annotation data
+metadata <- as.data.frame(metadata)
+anno <- metadata %>%
+  select(ID, TMB, Whole_Genome_Duplication) %>%
+  mutate(Whole_Genome_Duplication = factor(Whole_Genome_Duplication)) 
+
+# Rownames
 rownames(anno) <- anno$ID
 anno <- anno[,-1]
 
-# Colors 
+# Define colors 
 colors <- list('Whole_genome_duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
                'TMB' = colorRamp2(c(0, 600), c("white", "red")))
 
@@ -47,56 +45,42 @@ colors <- list('Whole_genome_duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'c
 dim(mt)
 dim(anno)
 
-# Run all partition methods 
+# Run consensus clustering or load the precomputed results 
 consensus_results = run_all_consensus_partition_methods(mt, anno = muestras_anno, anno_col = colors)
 
-# Or load the precomputed results object
 #consensus_results <- readRDS("consensus_results.rds")
 
-# Write report and analyze data - metrics and visual inspection of clusters for each k
-cola_report(consensus_results, output_dir= "/home/user/Documents/ConsensusClustering")
+# Generate report 
+cola_report(consensus_results, output_dir= "consensus_clustering_report")
 
-# Stats 
+# Extract results for the best performing combination (top-value and partitioning)
+SD_PAM_K3 = consensus_results["SD", "pam"]
+
+# Analyze stats and visualize 
 get_stats(consensus_results, k = 3)
-
-# Consensus heatmap
 consensus_heatmap(consensus_results["SD:pam"], k = 3)
-
-# Visualize classes 
 collect_classes(consensus_results["SD:pam"])
-
-# PCA
 dimension_reduction(SD_PAM_K3, k = 3, method = "PCA")
-
-# Test factors - TMB and WGD
-test_to_known_factors(consensus_results)
 
 # Plot membership heatmap
 membership_heatmap(SD_PAM_K3, k = 3)
 
-# Extract results for the best performing combination of methods (top-value and partitioning)
-SD_PAM_K3 = consensus_results["SD", "pam"]
+# Test association with TMB and WGD
+test_to_known_factors(consensus_results)
 
-# Extracting classification
-classification <- cbind(get_classes(consensus_results["SD:pam"], k = 3), get_membership(consensus_results["SD:pam"], k = 3))
-
-# Write file
+# Extract classification
+classification <- cbind(get_classes(consensus_results["SD:pam"], k = 3), 
+                        get_membership(consensus_results["SD:pam"], k = 3))
 write.table(classification, file = "cc_classification.tsv", sep = "\t",  col.names=NA)
+
 
 # Fix levels for visualization 
 split <- factor(paste0("Cluster\n", classification$class), levels=c("Cluster\n1","Cluster\n2","Cluster\n3"))
 
-# Signatures 
+# Get signatures and perform enrichment analysis 
 DE_signatures <- get_signatures(SD_PAM_K3, k = 3)
-
-# Write file
 write.csv(DE_signatures, "signatures.csv")
-
-# Enrichment analysis 
-head(rownames(SD_PAM_K3)) 
-enrichment_results = functional_enrichment(SD_PAM_K3, k = 3, ontology = c("BP", "MF", "CC"))
-names(enrichment_results)
-head(enrichment_results[[1]], 50) 
+enrichment_results = functional_enrichment(SD_PAM_K3, k = 3, ontology = c("BP", "MF", "CC")
 
 # Extracting signatures
 mt_genes <- rownames(SD_PAM_K3)
@@ -109,25 +93,23 @@ subset_signature <- mt[rownames(mt) %in% gene_signature, ]
 head(subset_signature)
 dim(subset_signature)
 
-# Saving object
-saveRDS(subset_signature, "DE_gene_signature.rds")
-
 ####--- Creating heatmap
-# Z-scores 
 data_subset_signatures_z <- t(scale(t(subset_signature)))
 
 # Or load the precomputed z-score matrix
 #data_subset_signatures_z <- readRDS("data_subset_signatures_z.rds")
 
-# Rownames metadata
+# Rownames 
 rownames(metadata) <- metadata$ID
 metadata <- metadata[,-1]
 
-# Reorder and make factors 
-metadata_ht <- metadata %>% select(BRAF, NRAS, KIT, NF1, Whole_Genome_Duplication, TMB, Ulceration, Breslow, Age, Sex, Stage) %>%
-                            mutate(across(c(Stage, Sex, Ulceration, Whole_Genome_Duplication, NF1, KIT, NRAS, BRAF), as.factor),
-                                   across(where(is.numeric), as.numeric)) %>% 
-                            glimpse()
+# Prepare metadata for heatmap
+metadata_ht <- metadata %>% 
+  select(BRAF, NRAS, KIT, NF1, Whole_Genome_Duplication, TMB, Ulceration, Breslow, Age, Sex, Stage) %>%
+  mutate(across(c(Stage, Sex, Ulceration, Whole_Genome_Duplication, NF1, KIT, NRAS, BRAF), as.factor),
+         across(where(is.numeric), as.numeric)) %>% 
+  glimpse()
+
 
 ```
 
@@ -140,7 +122,7 @@ ht_opt$HEATMAP_LEGEND_PADDING = unit(3, "cm")
 # Samples for visualization
 samples_ht <- c("PR51978a", "PR51948a", "PR40984a", "PR40966a", "PR41905a", "PR41916a", "PR51951a", "PR40963a", "PR41929d", "PR41045a", "PR41030a", "PR41928d", "PR51928a", "PR41017a", "PR41901a", "PR40985a", "PR41044a", "PR51932a", "PR41011a", "PR41930d", "PR41917a", "PR40989a", "PR41927d", "PR40971a", "PR40962a", "PR40961a", "PR41920a","PR40967a", "PR40996a",  "PR40994a", "PR41020a", "PR40997a", "PR41921a", "PR51979a", "PR51956a", "PR40968a", "PR41002a", "PR41913a", "PR40969a", "PR41025a", "PR40988a", "PR41035a", "PR40970a", "PR40990a", "PR41023f", "PR40986a", "PR41912a")
 
-# Color functions and breaks
+# Define color functions and breaks
 col_fun_tmb = colorRamp2(c(86,310,535), c("white", "#fdf542", "#ff0000"))
 col_fun_bres = colorRamp2(c(0,15,30), c("white", "#fdf542", "#ff0000"))
 col_fun_age = colorRamp2(c(32,60,88), c("white", "#fdf542", "#ff0000"))
@@ -244,7 +226,7 @@ genelabels <- rowAnnotation(
   gp = gpar(fontsize= 32, fontface = 'bold')))
 
 
-# Save and visualize 
+# Create and save heatmap 
 set.seed(123)
 png(height=3100, width=3100, file="heatmap.png", type = "cairo")
 
