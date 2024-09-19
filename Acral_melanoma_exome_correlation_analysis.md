@@ -115,7 +115,20 @@ my_pal = {"metastasis": "indianred", "primary": "gray", "Recurrence":"blue", "Le
 sns.stripplot(x="Site", y="GCS", data=per_patient_cn_data, size=8, color=".3", linewidth=0, hue="Tumor_type",palette=my_pal, order=["FEET","HAND","SUBUNGUAL"] )
 sns.despine(offset=10, trim=False)
 ```
+Statistical testing
 
+```python
+#Separating GCS scores by site
+HAND_GCS = per_patient_cn_data.loc[per_patient_cn_data['Site'] == "HAND", 'GCS']
+FEET_GCS = per_patient_cn_data.loc[per_patient_cn_data['Site'] == "FEET", 'GCS']
+SUBUNGUAL_GCS = per_patient_cn_data.loc[per_patient_cn_data['Site'] == "SUBUNGUAL", 'GCS']
+
+#Running Mann Whitney test
+mannwhitneyu(HAND_GCS, FEET_GCS)
+mannwhitneyu(HAND_GCS, SUBUNGUAL_GCS)
+mannwhitneyu(FEET_GCS, SUBUNGUAL_GCS)
+
+```
 
 ## Plotting GCS vs burden of snv+indels
 
