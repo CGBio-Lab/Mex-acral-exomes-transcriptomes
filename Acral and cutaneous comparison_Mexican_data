@@ -10,7 +10,6 @@
 library(DESeq2)
 
 #----Data (counts)----
-setwd("/home/kcontrerasramirez/Desktop/Newell_paty_paper /Mexican_data_acral_metanoma")
 raw_counts <- read.table("5823_2677_Acral_lentigious_melanoma_RNAseq_GRCh38_remap_HTSeq_Sreverse_STAR_ENSv103_ERCC_RAW_frag_counts_sample_supplier_name_IDs.tsv", header=TRUE)
 
 #---Mutational status data---
