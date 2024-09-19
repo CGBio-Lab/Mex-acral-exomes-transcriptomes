@@ -61,6 +61,39 @@ my_pal = {"metastasis": "indianred", "primary": "gray", "Recurrence":"blue", "Le
 #Plotting individual data points over the boxplot
 sns.stripplot(x="Mutation_status", y="GCS", data=per_patient_cn_data, size=8, hue="Tumor_type", linewidth=0, palette=my_pal,order=["NRAS","BRAF","NF1","KIT","multihit","Other"])
 ```
+Statistical testing
+
+GCS scores by mut
+
+``` python
+#Separating GCS scores by mutational status
+BRAF_GCS = per_patient_cn_data.loc[per_patient_cn_data['Mutation_status'] == "BRAF", 'GCS']
+NRAS_GCS = per_patient_cn_data.loc[per_patient_cn_data['Mutation_status'] == "NRAS", 'GCS']
+KIT_GCS = per_patient_cn_data.loc[per_patient_cn_data['Mutation_status'] == "KIT", 'GCS']
+NF1_GCS = per_patient_cn_data.loc[per_patient_cn_data['Mutation_status'] == "NF1", 'GCS']
+multihit_GCS = per_patient_cn_data.loc[per_patient_cn_data['Mutation_status'] == "multihit", 'GCS']
+Other_GCS = per_patient_cn_data.loc[per_patient_cn_data['Mutation_status'] == "Other", 'GCS']
+
+#Running Mann Whitney test
+from scipy.stats import shapiro
+from scipy.stats import mannwhitneyu
+
+mannwhitneyu(BRAF_GCS, KIT_GCS)
+mannwhitneyu(BRAF_GCS, NF1_GCS)
+mannwhitneyu(BRAF_GCS, NRAS_GCS)
+mannwhitneyu(BRAF_GCS, multihit_GCS)
+mannwhitneyu(BRAF_GCS, Other_GCS)
+mannwhitneyu(NRAS_GCS, KIT_GCS)
+mannwhitneyu(NRAS_GCS, NF1_GCS)
+mannwhitneyu(NRAS_GCS, multihit_GCS)
+mannwhitneyu(NRAS_GCS, Other_GCS)
+mannwhitneyu(KIT_GCS, NF1_GCS)
+mannwhitneyu(KIT_GCS, multihit_GCS)
+mannwhitneyu(KIT_GCS, Other_GCS)
+mannwhitneyu(NF1_GCS, multihit_GCS)
+mannwhitneyu(NF1_GCS, Other_GCS)
+mannwhitneyu(multihit_GCS, Other_GCS)
+```
 
 ## Correlation between copy number alterations and anatomical site
 
