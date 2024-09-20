@@ -1,0 +1,135 @@
+---
+title: "Acral melanoma - Ancestry vs Mutations"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+## Sample list
+
+The relevant samples, one for each patient.
+
+```{r}
+sample_list <- c("PD41026d","PD40984a","PD41917a","PD51978a","PD40986a",
+                 "PD41907a","PD41895a","PD51939a","PD41027a","PD40963a",
+                 "PD40974a","PD41030a","PD40973a","PD41912a","PD40982a",
+                 "PD40987a","PD40957a","PD41001a","PD40965a","PD41029e",
+                 "PD41045a","PD40962a","PD51940a","PD40956d","PD41046a",
+                 "PD41923g","PD41004a","PD41039a","PD41896a","PD41921a",
+                 "PD51932a","PD40990a","PD40996a","PD41032a","PD41002a",
+                 "PD51928a","PD40989a","PD40952a","PD41920a","PD40964a",
+                 "PD40976a","PD41905a","PD40983a","PD41916a","PD41000a",
+                 "PD41023f","PD41913a","PD40969a","PD40988a","PD40972a",
+                 "PD40985a","PD41929d","PD51948a","PD41036a","PD40971a",
+                 "PD40961a","PD40994a","PD41038a","PD40970a","PD41035a",
+                 "PD41930d","PD41025a","PD41927d","PD41901a","PD40966a",
+                 "PD41925d","PD51982a","PD40978a","PD40997a","PD41020a",
+                 "PD41928d","PD41021d","PD40968a","PD41017a","PD51956a",
+                 "PD41043a","PD40967a","PD41011a","PD41915c","PD41900a",
+                 "PD41033a","PD41910a","PD41909a","PD41906a","PD41932d",
+                 "PD41939d","PD51979a","PD51951a","PD51969a","PD51929a",
+                 "PD51930a","PD51952a","PD51972a","PD51993a","PD40980a",
+                 "PD41044a")
+```
+
+
+## Covariate Files
+
+Ancestry from ADMIXTURE run with $k=5$.
+
+```{r}
+ancestry <- read_excel('supplementary_data/Supplementary_Table_2.xlsx',skip=1) %>% 
+  rename_with(~ str_replace(., "\\s.*", "")) %>% 
+  mutate(ID=str_sub(ID,1,-2))
+```
+
+The SNVs and indel counts by tumor:
+
+```{r}
+snp_indel_count <- read_csv('supplementary_data/correct_snp_indels_strelka_2of3_snp.csv') %>% 
+  rename(snv_and_indels=`snp+indels`) %>% 
+  select(Tumor_Sample_Barcode, snv_and_indels)
+```
+
+Clinical data for patients is merged with the counts and only the relevant tumor samples are selected using the `sample_list`.
+
+```{r}
+covar <- read_excel('supplementary_data/Supplementary_Table_1.xlsx',skip=1) %>% 
+  merge(snp_indel_count) %>% 
+  filter(Tumor_Sample_Barcode %in% sample_list) %>% 
+  rename(ID=Patient_File) %>% 
+  select(ID,Gender,Age,Socioeconomic_status,snv_and_indels)
+```
+
+
+## Mutation file
+
+```{r}
+samples <- read_delim('Sample_file_mut.csv')
+names(samples) <- c("ID","file_x","mut")
+samples <- samples %>% 
+  select(ID,mut) %>% 
+  mutate(ID=str_sub(ID,1,-2)) %>% 
+  distinct()
+```
+
+
+```{r}
+data <-
+  samples %>% 
+  mutate(values=1) %>%
+  pivot_wider(names_from = mut,values_from = values, values_fill=0) %>% 
+  inner_join(ancestry %>% filter(SUPERPOP=="-") %>% select(ID,Q2,Q5)) %>%
+  arrange(Q2) %>% 
+  inner_join(covar) %>% 
+  distinct(ID,.keep_all = TRUE)
+```
+
+Formula to be used with each gene. The Q5 ADMIXTURE cluster is related to the EUR ancestry in the 1000 Genomes Project.
+
+```{r}
+dependent_formula <- "~ Q5 + Age + Gender + snv_and_indels + Socioeconomic_status"
+```
+
+Remove rows with missing covariates.
+
+```{r}
+data_complete <- data %>% select(ID, Q5, Age, Gender, snv_and_indels, Socioeconomic_status,NRAS,KIT,NF1,BRAF) %>% drop_na()
+```
+
+
+Logistic regression model for each gene
+
+```{r}
+muts <- c("KIT","BRAF","NRAS","NF1")
+results_list <- lapply(1:4, 
+       function(x) 
+         as.data.frame(confint.default(glm(formula(paste0(muts[x],dependent_formula)),
+             data=data_complete, family = "binomial"),"Q5")) %>% 
+  rename(lower=`2.5 %`,upper=`97.5 %`) %>% 
+  mutate(estimate=glm(formula(paste0(muts[x],dependent_formula)),
+     data=data_complete, family = "binomial")$coefficients[2],
+     p_value=coef(summary(glm(formula(paste0(muts[x],dependent_formula)),
+     data=data_complete, family = "binomial")))[2,4],
+     mutation=muts[x])
+       )  
+results_df <- do.call(rbind,results_list)
+results_df
+```
+
+Forest plot with the confidence intervals for the ancestry related parameter of the linear regression. With the p-value added as text.
+
+```{r}
+results_df %>% 
+  ggplot(aes(y=mutation)) + 
+  geom_point(aes(x=estimate), shape=15, size=3) +
+  geom_linerange(aes(xmin=lower, xmax=upper)) +
+  xlab("Log Odds - Estimate and confidence intervals") +
+  geom_text(aes(x=0,y=mutation,label=paste0("p=",round(p_value,2))),nudge_y=0.1)
+```
+
+
+
