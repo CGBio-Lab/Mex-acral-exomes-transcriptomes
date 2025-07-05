@@ -1,5 +1,5 @@
 ---
-title: "Acral melanoma MX - consensus clustering"
+title: "Acral melanoma MX - consensus clustering analysis, enrichment and visualization of gene signatures across clusters"
 author: "Estef Vazquez"
 output:
   html_document:
@@ -9,48 +9,60 @@ output:
       collapsed: true
 ---
 
+Overview
+This document provides code for running consensus clustering to identify molecular subtypes (two-level clustering approach, sample classification followed by genes), differential expression, enrichment analysis and visualization of gene expression signatures in 44 acral melanoma samples. The analysis also generates a heatmap showing expression patterns and boxplot comparisons of differentially expressed genes across clusters.
+
 
 ## Load required libraries
 
 ```{r, message=FALSE}
+
+library(here)
 library(cola)
 library(ComplexHeatmap)
+library(clusterProfiler)
 library(tidyverse)
+library(ggpubr)
 library(RColorBrewer)
 library(colorRamp2)
 library(circlize)
+library(cowplot)
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+library(grid)
+library(gridExtra)
+library(reshape2)
 ```
+
 
 ## Clustering and signature analysis
 
 ```{r}
 # Load data 
-mt <- readRDS("acralMX_expression_data.rds")
-metadata <- read_csv("acralMX_metadata_cc.csv")
+mt <- readRDS("acralMX_expression_data_update44s.rds")
+metadata <- read_csv("acralMX_metadata_cc_update.csv")
 
 
 # Prepare annotation data
 metadata <- as.data.frame(metadata)
-anno <- metadata %>%
-  select(ID, TMB, Whole_Genome_Duplication) %>%
-  mutate(Whole_Genome_Duplication = factor(Whole_Genome_Duplication)) 
+cc_anno <- metadata %>%
+  select(TMB, WGD) %>%
+  mutate(WGD = factor(WGD)) 
 
 # Rownames
-rownames(anno) <- anno$ID
-anno <- anno[,-1]
+rownames(cc_anno) <- cc_anno$sample_id
+cc_anno <- cc_anno[,-1]
 
 # Define colors 
-colors <- list('Whole_Genome_Duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
+colors <- list('WGD' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
                'TMB' = colorRamp2(c(0, 600), c("white", "red")))
 
 # Check dimensions 
 dim(mt)
 dim(anno)
 
-# Run consensus clustering or load the precomputed results 
-consensus_results = run_all_consensus_partition_methods(mt, anno = muestras_anno, anno_col = colors)
-
-consensus_results <- readRDS("consensus_results.rds")
+# Run consensus clustering 
+consensus_results = run_all_consensus_partition_methods(mt, anno = cc_anno, anno_col = colors)
 
 # Generate report 
 cola_report(consensus_results, output_dir= "consensus_clustering_report")
@@ -62,7 +74,6 @@ SD_PAM_K3 = consensus_results["SD", "pam"]
 get_stats(consensus_results, k = 3)
 
 consensus_heatmap(consensus_results["SD:pam"], k = 3)
-
 collect_classes(consensus_results["SD:pam"])
 
 # PCA
@@ -103,166 +114,523 @@ dim(subset_signature)
 data_subset_signatures_z <- t(scale(t(subset_signature)))
 
 # Or load the precomputed z-score matrix
-data_subset_signatures_z <- readRDS("data_subset_signatures_z.rds")
-
-# Prepare metadata
-rownames(metadata) <- metadata$ID
-metadata <- metadata[,-1]
-
-metadata_ht <- metadata %>% 
-  select(BRAF, NRAS, KIT, NF1, Whole_Genome_Duplication, TMB, Ulceration, Breslow, Age, Sex, Stage) %>%
-  mutate(across(c(Stage, Sex, Ulceration, Whole_Genome_Duplication, NF1, KIT, NRAS, BRAF), as.factor),
-         across(where(is.numeric), as.numeric)) %>% glimpse()
-
-
+data_subset_signatures_z <- readRDS("DE_signatures_zscores.rds")
 ```
+
 
 ## Heatmap visualization
 
 ```{r}
-ht_opt$ANNOTATION_LEGEND_PADDING = unit(2, "cm")
-ht_opt$HEATMAP_LEGEND_PADDING = unit(3, "cm")
 
-# Samples for visualization
-samples_ht <- c("PR51978a", "PR51948a", "PR40984a", "PR40966a", "PR41905a", "PR41916a", "PR51951a", "PR40963a", "PR41929d", "PR41045a", "PR41030a", "PR41928d", "PR51928a", "PR41017a", "PR41901a", "PR40985a", "PR41044a", "PR51932a", "PR41011a", "PR41930d", "PR41917a", "PR40989a", "PR41927d", "PR40971a", "PR40962a", "PR40961a", "PR41920a","PR40967a", "PR40996a",  "PR40994a", "PR41020a", "PR40997a", "PR41921a", "PR51979a", "PR51956a", "PR40968a", "PR41002a", "PR41913a", "PR40969a", "PR41025a", "PR40988a", "PR41035a", "PR40970a", "PR40990a", "PR41023f", "PR40986a", "PR41912a")
+# Verify samples in mt and metadata are present
+all_expr_samples_in_metadata <- all(colnames(data_subset_signatures_z) %in% rownames(metadata))
+print(paste("All expression samples in metadata:", all_expr_samples_in_metadata))
+all_metadata_samples_in_expr <- all(rownames(metadata) %in% colnames(data_subset_signatures_z))
+print(paste("All metadata samples in expression data:", all_metadata_samples_in_expr))
 
-# Define color functions and breaks
-col_fun_tmb = colorRamp2(c(86,310,535), c("white", "#fdf542", "#ff0000"))
-col_fun_bres = colorRamp2(c(0,15,30), c("white", "#fdf542", "#ff0000"))
-col_fun_age = colorRamp2(c(32,60,88), c("white", "#fdf542", "#ff0000"))
+# Verify metadata order 
+metadata_ordered <- metadata[colnames(data_subset_signatures_z), ]
+identical(rownames(metadata_ordered), colnames(data_subset_signatures_z))
+
+# Samples 
+samples_ht <- c("PR51978a", "PR51948a", "PR40984a", "PR40966a", "PR41905a", "PR41916a", "PR51951a", "PR40963a", "PR41045a", "PR40996a", "PR51979a", 
+                 "PR41023f", "PR40986a", "PR41912a", "PR41928d", "PR51928a", "PR41017a", "PR41901a", "PR40985a", "PR41044a", "PR51932a", "PR41011a",
+                 "PR41930d", "PR40989a", "PR41927d", "PR40971a", "PR40962a", "PR40961a", "PR41920a", "PR40967a", "PR41030a", "PR40994a", "PR41020a",     
+                 "PR40997a", "PR41921a", "PR40968a", "PR41002a", "PR41913a", "PR40969a", "PR41025a", "PR40988a", "PR41035a", "PR40970a", "PR40990a")
+
+# Verify class order
+classification_ordered <- classification[samples_ht, ]
+table(classification_ordered$class)
+nrow(classification_ordered)
+length(samples_ht) 
+
+# Create split
+split <- factor(paste0("Cluster", classification_ordered$class), 
+                levels=c("Cluster1", "Cluster2", "Cluster3"))
+names(split) <- samples_ht
+
+
+# Verify data is aligned
+data_subset_signatures_z <- data_subset_signatures_z[, samples_ht]
+identical(names(split), samples_ht)  
+identical(names(split), colnames(data_subset_signatures_z))  
+metadata_ordered <- metadata_ordered[samples_ht, ]
+metadata_ordered <- metadata[samples_ht, ]
+
+identical(rownames(metadata_ordered), samples_ht)  
+identical(rownames(metadata_ordered), colnames(data_subset_signatures_z)) 
+
+
+# Annotations for heatmap 
+
+# TMB
+tmb_breaks <- c(min(metadata_ordered$TMB, na.rm=TRUE), 
+                median(metadata_ordered$TMB, na.rm=TRUE), 
+                max(metadata_ordered$TMB, na.rm=TRUE))
+
+col_fun_tmb = colorRamp2(tmb_breaks, c("white", "#fdf542", "#ff0000"))
+
+
+# Age
+age_breaks <- c(min(metadata_ordered$age, na.rm=TRUE),
+                median(metadata_ordered$age, na.rm=TRUE),
+                max(metadata_ordered$age, na.rm=TRUE))
+
+col_fun_age = colorRamp2(age_breaks, c("#FFEDAB", "#FFA500", "#CD6600"))
+
+
+# Tumor purity
+col_fun_purity = colorRamp2(c(0, 0.5, 1.0), c("white", "#fdf542", "#ff0000"))
+
+
+# Colors HT
 mycol <- colorRampPalette(c('green', 'black', 'purple'))(100)
 mybreaks <- seq(-2, 2, length.out = 100) 
 
-colors <- list('BRAF' = c('Missense' = 'red', 'Non_mutated' = 'blue4'),
-               'NRAS' = c('Missense' = 'olivedrab', 'Non_mutated' = 'orange'), 
-               'KIT' = c('Missense' = '#3F007D', 'no-SNV' = 'yellow', 'Non_mutated' = '#CC0066'),
-               'NF1' = c("Nonsense" = "#CB181D", 'no-SNV' = '#74a9cf', 'Non_mutated' = 'pink'),
-               'Whole_Genome_Duplication' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
-               'TMB' = col_fun_tmb,
-               'Ulceration' = c('yes' = '#00441B', 'no' = '#74a9cf'),
-               'Breslow' = col_fun_bres,
-               'Age' = col_fun_age,
-               'Sex' = c('female' = 'blue', 'male' = '#241178'),
-               'Stage' = c('0' = '#FFFFCC', '1' = '#FFFF66', '2' = '#FF9900', '3' = 'red', '4' = "gray"))
+colors <- list(
+  'mutation_status' = c('BRAF' = '#F48FB1', 'NF1' = '#81C784', 
+                        'NRAS' = '#FFAB91', 'KIT' = '#80DEEA',
+                        'Other' = '#BDBDBD', 'multihit' = '#FFF176'), 
+  'stage' = c('0' = '#E0E0E0', '1' = '#BBDEFB', '2' = '#90CAF9',
+              '3' = '#5C6BC0', '4' = '#4527A0'),
+  'sex' = c('F' = '#4DAF4A', 'M' = '#FC4E2A'),
+  'age' = col_fun_age,
+  'ulceration' = c('1' = '#CB181D', '0' = '#2196F3'),
+  'WGD' = c('1' = 'deeppink4', '0' = '#4FC3F7'),
+  'TMB' = col_fun_tmb,
+  'tumor_purity' = col_fun_purity
+)
 
-# Annotations
+
 colAnn <- HeatmapAnnotation(
-  df = metadata_ht,
+  df = metadata_ordered,
   which = 'col', 
   na_col = "black", 
   col = colors,
-  simple_anno_size = unit(1.4, "cm"),
-  annotation_width = unit(c(1, 11), 'cm'),
-  gap = unit(1.5, 'mm'),
-  annotation_height = unit(c(1, 17), 'cm'),
-  annotation_name_gp = gpar(fontsize = 21),
+  simple_anno_size = unit(0.5, "cm"),
+  annotation_width = unit(c(1, 8), 'cm'),  # Adjusted for 8 columns
+  gap = unit(0.5, 'mm'),
+  annotation_height = unit(0.5, 'cm'),  # Slightly reduced for fewer columns
+  annotation_name_gp = gpar(fontsize = 15),
   annotation_name_align = TRUE,
   annotation_name_side = 'left',
   annotation_legend_param = list(
-      BRAF = list(
-        #nrow = 2, 
-        title = 'BRAF',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      NRAS = list(
-        #nrow = 2,
-        title = 'NRAS',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      KIT = list(
-        #nrow = 3,
-        title = 'KIT',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      NF1 = list(
-        #nrow = 3,
-        title = 'NF1',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      Whole_Genome_Duplication = list(
-        #nrow = 2,
-        title = 'WGD',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      TMB = list(
-        #nrow = 2,
-        title = 'TMB',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      Age = list(
-        #nrow = 2,
-        title = 'Age',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      Sex = list(
-        #nrow = 2,
-        title = 'Sex',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      Breslow = list(
-        #nrow = 2,
-        title = 'Breslow',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      Ulceration = list(
-        #nrow = 3,
-        title = 'Ulceration',
-        at = c("yes", "no"),
-        labels = c("Yes", "No"),
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32)),
-      Stage = list(
-        #nrow = 4,
+      mutation_status = list(
+        title = 'Mutation Status',
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      stage = list(
         title = 'Stage',
-        title_gp = gpar(fontsize = 32, fontface = 'bold'),
-        labels_gp = gpar(fontsize = 32))))
-      
-# Gene labels
-genelabels <- rowAnnotation(
-  Genes = anno_mark(
-    at = seq(1, nrow(data_subset_signatures_z), 100),
-    labels = rownames(data_subset_signatures_z)[seq(1, nrow(data_subset_signatures_z), 100)],
-    labels_gp = gpar(fontsize = 32),
-    padding = 1),
-    width = unit(14.0, 'cm') + 
-    max_text_width(
-  rownames(data_subset_signatures_z)[seq(1, nrow(data_subset_signatures_z), 100)],
-  gp = gpar(fontsize= 32, fontface = 'bold')))
-
-
-# Save heatmap 
-set.seed(123)
-png(height=3100, width=3100, file="heatmap.png", type = "cairo")
-
-ht <- ComplexHeatmap::Heatmap(data_subset_signatures_z,
-                                      column_split=split, 
-                                      raster_by_magick = FALSE,
-                                      column_order = samples_ht, 
-                                      top_annotation = colAnn,
-                                      column_names_gp = grid::gpar(fontsize = 20, fontface = 'bold'),
-                                      column_gap = unit(5, "mm"), 
-                                      show_column_dend = TRUE,
-                                      column_dend_height = unit(17,'cm'),
-                                      show_row_names = FALSE,
-                                      show_row_dend = FALSE,
-                                      cluster_rows = TRUE,
-                                      clustering_distance_rows = "euclidean", 
-                                      clustering_method_rows = "ward.D2", 
-                                      name = 'Z-score',
-                                      col = colorRamp2(mybreaks, mycol),
-                                      heatmap_legend_param = list(
-                                        color_bar = 'continuous',
-                                        legend_direction = 'vertical',
-                                        legend_width = unit(30, 'cm'),
-                                        legend_height = unit(25, 'cm'),
-                                        at = c(-3, 0, 3),
-                                        title_gp=gpar(fontsize = 50),
-                                        labels_gp=gpar(fontsize = 50)))
-
-
-ht = draw(ht)
-dev.off()
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      sex = list(
+        title = 'Sex',
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      age = list(
+        title = 'Age',
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      ulceration = list(
+        title = 'Ulceration',
+        at = c("1", "0"),  # Adapt based on your actual values
+        labels = c("Yes", "No"),
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      WGD = list(
+        title = 'WGD',
+        at = c("1", "0"),  # Adapt based on your actual values
+        labels = c("Yes", "No"),
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      TMB = list(
+        title = 'TMB',
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20)),
+      tumor_purity = list(
+        title = 'Tumor Purity',
+        title_gp = gpar(fontsize = 22, fontface = 'bold'),
+        labels_gp = gpar(fontsize = 20))
+  )
+)
 ```
+
+
+# Clustering DE signatures - Heatmap
+
+```{r}
+
+# Defining genes for visualization
+target_genes <- c("KRT1", "KRT2", "KRT9",  
+                  "FLG2", "PERP", "DUOX1", 
+                  "FOXN1", "CRB3", 
+                  "AURKA", "PTPRH", "GPR3", 
+                  "FAM81A", "IGHV1-24", "MIR4534", 
+                  "FABP7", "SLC35F1", "STEAP1B",
+                  "CCDC86", "FGFBP2", "MFAP2", 
+                  "VAX2", "SUSD5", "RNU4-1",
+                  "RNU4ATAC", "SEC14L4", "GPR50")
+
+
+# Map gene symbols 
+map_target_genes <- function(gene_symbols, lookup_df) {
+  mapped_genes <- lookup_df %>%
+    dplyr::filter(gene_symbol %in% gene_symbols) %>%
+    dplyr::select(gene_symbol, ensembl_id) %>%
+    distinct()
+  
+  missing_genes <- setdiff(gene_symbols, mapped_genes$gene_symbol)
+  
+  if(length(missing_genes) > 0) {
+    cat("Warning: Could not find ENSEMBL IDs for:", paste(missing_genes, collapse = ", "), "\n")
+  }
+  
+  cat("Successfully mapped", nrow(mapped_genes), "out of", length(gene_symbols), "genes\n")
+  
+  return(mapped_genes)
+}
+
+target_gene_mapping <- map_target_genes(target_genes, DE_signatures_fc)
+
+
+
+# Finding positions and labels of genes in mt
+get_target_gene_labels <- function(target_mapping, zscore_matrix) {
+  available_genes <- target_mapping[target_mapping$ensembl_id %in% rownames(zscore_matrix), ]
+  
+  if(nrow(available_genes) == 0) {
+    stop("No genes found")
+  }
+  
+  gene_positions <- match(available_genes$ensembl_id, rownames(zscore_matrix))
+  gene_labels <- available_genes$gene_symbol
+  cat("Found", length(gene_positions), "target genes in the matrix\n")
+  cat("Target genes found:", paste(gene_labels, collapse = ", "), "\n")
+  
+  return(list(
+    positions = gene_positions,
+    labels = gene_labels,
+    ensembl_ids = available_genes$ensembl_id
+  ))
+}
+
+gene_labels_info <- get_target_gene_labels(target_gene_mapping, data_subset_signatures_z)
+
+
+# Gene annotation
+gene_text_anno <- rowAnnotation(
+  target_genes = anno_mark(
+    at = gene_labels_info$positions,
+    labels = gene_labels_info$labels,
+    labels_gp = gpar(fontsize = 12, fontface = "bold.italic", col = "black"),
+    padding = unit(0.5, "cm"),
+    link_width = unit(5, "mm"),
+    link_gp = gpar(lwd = 1.5, col = "black")
+  ),
+  width = unit(6, "cm")
+)
+
+
+# Create and save heatmap
+set.seed(123)
+pdf(height = 20, width = 20, file = "heatmap_cc_signature_across_clusters_040725_new.pdf")
+
+ht_full <- ComplexHeatmap::Heatmap(
+  data_subset_signatures_z, 
+  #column_split = split,
+  column_order = samples_ht,
+  cluster_columns = FALSE, 
+  top_annotation = colAnn,
+  right_annotation = gene_text_anno,  
+  column_names_gp = grid::gpar(fontsize = 12),
+  column_gap = unit(3, "mm"), 
+  show_column_dend = FALSE,
+  column_dend_height = unit(5, "cm"),
+  show_row_names = FALSE,  
+  show_row_dend = FALSE,
+  cluster_rows = TRUE,
+  clustering_distance_rows = "euclidean",
+  clustering_method_rows = "ward.D2",
+  name = 'Z-score',
+  col = colorRamp2(mybreaks, mycol),
+  heatmap_legend_param = list(
+    color_bar = 'continuous',
+    legend_direction = 'vertical',
+    legend_width = unit(8, "cm"),
+    legend_height = unit(9, "cm"),
+    title_position = 'topcenter',
+    title_gp = gpar(fontsize = 15), 
+    labels_gp = gpar(fontsize = 12)
+  )
+)
+
+draw(ht_full, padding = unit(c(2, 2, 2, 2), "cm"),
+     heatmap_legend_side = "left")
+dev.off()
+
+```
+
+
+
+# Boxplots - DE genes across clusters
+```{r}
+# Define genes of interest for visualization
+#genes_of_interest <- c("AURKA", "PTPRH", "GPR3", 
+#                       "FAM81A", "IGHV1-24", "MIR4534", 
+#                       "FABP7", "SLC35F1", "STEAP1B")
+
+#genes_of_interest <- c("CCDC86", "FGFBP2", "MFAP2", 
+#                       "VAX2", "SUSD5", "RNU4-1",
+#                       "RNU4ATAC", "SEC14L4", "GPR50")
+
+genes_of_interest <- c("KRT1", "KRT2", "KRT9",
+                        "FLG2", "PERP", "DUOX1", 
+                       "KPRP", "FOXN1", "CRB3")
+
+
+
+# Data preparation
+map_genes_to_ensembl <- function(gene_symbols, lookup_df) {
+  mapped_genes <- lookup_df %>%
+    dplyr::filter(gene_symbol %in% gene_symbols) %>%
+    dplyr::select(gene_symbol, ensembl_id) %>%
+    distinct()
+  
+  missing_genes <- setdiff(gene_symbols, mapped_genes$gene_symbol)
+  if(length(missing_genes) > 0) {
+    cat("Warning: Could not find ENSEMBL IDs for:", paste(missing_genes, collapse = ", "), "\n")
+  }
+  
+  return(mapped_genes)
+}
+
+
+# Map genes
+gene_mapping <- map_genes_to_ensembl(genes_of_interest, DE_signatures_fc)
+selected_genes_ensembl <- gene_mapping$ensembl_id
+names(selected_genes_ensembl) <- gene_mapping$gene_symbol
+selected_expr <- mt[selected_genes_ensembl, ]
+rownames(selected_expr) <- names(selected_genes_ensembl)
+
+
+# Prepare for plotting
+plot_data <- melt(t(selected_expr))
+colnames(plot_data) <- c("Sample", "Gene", "Expression")
+plot_data$Sample <- as.character(plot_data$Sample)
+#classification <- classification %>% rownames_to_column(var = "Sample") %>% glimpse()
+
+
+# Merge with cluster class
+plot_data <- merge(plot_data, 
+                  classification[, c("Sample", "class")], 
+                  by = "Sample",
+                  all.x = TRUE)
+
+plot_data$Cluster <- as.factor(plot_data$class)
+
+
+#  Calculate Y-axis limits
+y_min <- min(plot_data$Expression, na.rm = TRUE)
+y_max <- max(plot_data$Expression, na.rm = TRUE)
+y_range <- y_max - y_min
+y_buffer <- y_range * 0.60 
+shared_ylim <- c(0, 18)
+
+# P-values
+get_significance <- function(p) {
+  if(p <= 0.0001) return("****")
+  if(p <= 0.001) return("***")
+  if(p <= 0.01) return("**")
+  if(p <= 0.05) return("*")
+  return("ns")
+}
+
+
+create_manual_comparison_plot <- function(data, gene_name) {
+  gene_data <- data[data$Gene == gene_name, ]
+  
+  # Statistical tests
+  pairwise_tests <- list(
+    "1vs2" = wilcox.test(gene_data$Expression[gene_data$Cluster == "1"], 
+                        gene_data$Expression[gene_data$Cluster == "2"])$p.value,
+    "1vs3" = wilcox.test(gene_data$Expression[gene_data$Cluster == "1"], 
+                        gene_data$Expression[gene_data$Cluster == "3"])$p.value,
+    "2vs3" = wilcox.test(gene_data$Expression[gene_data$Cluster == "2"], 
+                        gene_data$Expression[gene_data$Cluster == "3"])$p.value
+  )
+  
+  sig_symbols <- sapply(pairwise_tests, get_significance)
+  
+  kw_test <- kruskal.test(Expression ~ Cluster, data = gene_data)
+  kw_pvalue <- format.pval(kw_test$p.value, digits = 2)
+  
+  
+#  Bracket positions
+gene_data_max <- max(gene_data$Expression, na.rm = TRUE)
+plot_height <- shared_ylim[2] - shared_ylim[1] 
+bracket_y_base <- gene_data_max + 3.7
+max_bracket_y <- bracket_y_base + (2 * plot_height * 0.12) 
+if(max_bracket_y > 15) {  
+  bracket_y_base <- 17.5 - (2 * plot_height * 0.1) 
+}
+
+bracket_spacing <- plot_height * 0.07  
+
+
+
+  # Plot
+  p <- ggplot(gene_data, aes(x = Cluster, y = Expression, fill = Cluster)) +
+    geom_boxplot(alpha = 0.9, 
+                 outlier.shape = NA,
+                 color = "black",
+                 linewidth = 0.6) +
+    geom_point(position = position_jitter(width = 0.2, height = 0), 
+               alpha = 0.5, 
+               size = 2.2, 
+               color = "gray40",
+               shape = 16) +
+    scale_fill_manual(values = c("1" = "#EC99C2", "2" = "#F1955C", "3" = "#A99AEC")) +
+    scale_x_discrete(limits = c("1", "2", "3")) +
+    scale_y_continuous(limits = shared_ylim, expand = c(0, 0)) +
+    labs(title = gene_name) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      axis.text.x = element_text(size = 12, color = "black"),
+      axis.text.y = element_text(size = 12, color = "black"),
+      axis.line.x = element_line(color = "black", linewidth = 0.6),
+      axis.line.y = element_line(color = "black", linewidth = 0.6),
+      axis.ticks.x = element_line(color = "black", linewidth = 0.6),
+      axis.ticks.y = element_line(color = "black", linewidth = 0.6),
+      axis.ticks.length = unit(0.2, "cm"),
+      legend.position = "none",
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+      panel.background = element_rect(fill = "white"),
+      plot.margin = margin(t = 15, r = 5, b = 5, l = 5)
+    ) 
+  
+
+  # Cluster 1 vs 2
+  bracket1_y <- bracket_y_base
+  p <- p +
+    annotate("segment", x = 1, xend = 2, 
+             y = bracket1_y, yend = bracket1_y, 
+             color = "black", linewidth = 0.6) +
+    annotate("segment", x = 1, xend = 1, 
+             y = bracket1_y - y_range * 0.01, yend = bracket1_y, 
+             color = "black", linewidth = 0.6) +
+    annotate("segment", x = 2, xend = 2, 
+             y = bracket1_y - y_range * 0.01, yend = bracket1_y, 
+             color = "black", linewidth = 0.6) 
+  
+  if(sig_symbols[["1vs2"]] == "ns") {
+    p <- p + annotate("text", x = 1.5, y = bracket1_y + y_range * 0.02, 
+                     label = sig_symbols[["1vs2"]], size = 3.5, fontface = "plain")
+  } else {
+    p <- p + annotate("text", x = 1.5, y = bracket1_y + y_range * 0.02, 
+                     label = sig_symbols[["1vs2"]], size = 5, fontface = "bold")
+  }
+  
+  
+  # Cluster 1 vs 3
+  bracket2_y <- bracket1_y + bracket_spacing
+  p <- p +
+    annotate("segment", x = 1, xend = 3, 
+             y = bracket2_y, yend = bracket2_y, 
+             color = "black", linewidth = 0.6) +
+    annotate("segment", x = 1, xend = 1, 
+             y = bracket2_y - y_range * 0.01, yend = bracket2_y, 
+             color = "black", linewidth = 0.6) +
+    annotate("segment", x = 3, xend = 3, 
+             y = bracket2_y - y_range * 0.01, yend = bracket2_y, 
+             color = "black", linewidth = 0.6) 
+  
+  if(sig_symbols[["1vs3"]] == "ns") {
+    p <- p + annotate("text", x = 2, y = bracket2_y + y_range * 0.02, 
+                     label = sig_symbols[["1vs3"]], size = 3.5, fontface = "plain")
+  } else {
+    p <- p + annotate("text", x = 2, y = bracket2_y + y_range * 0.02, 
+                     label = sig_symbols[["1vs3"]], size = 5, fontface = "bold")
+  }
+  
+  
+  # Cluster 2 vs 3
+  bracket3_y <- bracket2_y + bracket_spacing
+  p <- p +
+    annotate("segment", x = 2, xend = 3, 
+             y = bracket3_y, yend = bracket3_y, 
+             color = "black", linewidth = 0.6) +
+    annotate("segment", x = 2, xend = 2, 
+             y = bracket3_y - y_range * 0.01, yend = bracket3_y, 
+             color = "black", linewidth = 0.6) +
+    annotate("segment", x = 3, xend = 3, 
+             y = bracket3_y - y_range * 0.01, yend = bracket3_y, 
+             color = "black", linewidth = 0.6) 
+
+    if(sig_symbols[["2vs3"]] == "ns") {
+    p <- p + annotate("text", x = 2.5, y = bracket3_y + y_range * 0.02, 
+                     label = sig_symbols[["2vs3"]], size = 3.5, fontface = "plain")
+  } else {
+    p <- p + annotate("text", x = 2.5, y = bracket3_y + y_range * 0.02, 
+                     label = sig_symbols[["2vs3"]], size = 5, fontface = "bold")
+  }
+  
+  
+  p <- p + annotate("text", 
+                   x = 1.4, 
+                   y = shared_ylim[2] * 0.95,                    
+                   label = paste("Kruskal-Wallis, p =", kw_pvalue),
+                   size = 3.3, 
+                   hjust = 0.5, 
+                   fontface = "plain")
+  
+  return(p)
+}
+
+  
+# Create plots
+manual_plot_list <- list()
+for(i in 1:length(genes_of_interest)) {
+  gene <- genes_of_interest[i]
+  if(gene %in% unique(plot_data$Gene)) {
+    manual_plot_list[[i]] <- create_manual_comparison_plot(plot_data, gene)
+  } else {
+    cat("Warning: Gene", gene, "not found in expression data\n")
+    manual_plot_list[[i]] <- NULL
+  }
+}
+
+manual_plot_list <- manual_plot_list[!sapply(manual_plot_list, is.null)]
+
+
+# Define layout 
+create_publication_layout <- function(plot_list) {
+  combined_plot <- grid.arrange(
+    grobs = plot_list,
+    ncol = 3,
+    nrow = 3,
+    top = textGrob("Expression of Selected Genes Across Sample Clusters", 
+                   gp = gpar(fontsize = 18, fontface = "bold")),
+    bottom = textGrob("Cluster", 
+                     gp = gpar(fontsize = 14, fontface = "bold")),
+    left = textGrob("Gene Expression", 
+                   rot = 90, 
+                   gp = gpar(fontsize = 14, fontface = "bold"))
+  )
+  return(combined_plot)
+}
+
+
+# Save 
+pdf("gene_expression_across_clusters.pdf", width = 10, height = 12)
+final_plot <- create_publication_layout(manual_plot_list)  
+dev.off()
+
+final_plot <- create_publication_layout(manual_plot_list) 
+```
+
 
 
 **Reference**
