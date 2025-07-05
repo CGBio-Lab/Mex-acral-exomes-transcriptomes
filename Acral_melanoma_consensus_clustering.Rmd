@@ -271,6 +271,9 @@ target_genes <- c("KRT1", "KRT2", "KRT9",
                   "VAX2", "SUSD5", "RNU4-1",
                   "RNU4ATAC", "SEC14L4", "GPR50")
 
+# Load signatures ranked
+DE_signatures_fc <- readRDS("DE_signatures_generank.rds")
+
 
 # Map gene symbols 
 map_target_genes <- function(gene_symbols, lookup_df) {
