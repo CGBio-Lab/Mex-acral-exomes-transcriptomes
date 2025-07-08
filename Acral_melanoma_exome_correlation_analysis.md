@@ -13,11 +13,11 @@ import seaborn as sns
 import numpy as np
 
 #Reading data 
-data = pd.read_csv("Supplementary_table_1.csv", sep=",")
+data = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
 #Reading IDs for one sample per patient (giving priority to primaries when available)
 per_patient_id = pd.read_csv("/data/One_sample_per_patient_ID.csv")
 #Filtering to get only one sample per patient
-per_patient_data = per_patient_id.merge(clindata, how="left", on="Tumor_Sample_Barcode")
+per_patient_data = per_patient_id.merge(clindata, how="left", left_on="Tumor_Sample_Barcode", right_on="Sample")
 
 #Setting up the aesthetics of the plot
 #Setting up the aesthetics of the plot
@@ -26,12 +26,12 @@ sns.set_style("white")
 sns.set_context("talk")
 my_palette = {"#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf"}
 sns.set_palette(my_palette)
-mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "Other":"lightgray", "KIT":"#7ec4cf"}
+mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWR":"lightgray", "KIT":"#7ec4cf"}
 #Plotting the boxplot
-sns.boxplot(y="Mutation_status", x="age", data=per_patient_data, palette=mypal_mut, order=["BRAF","NRAS","NF1","KIT","multihit","Other"])
+sns.boxplot(y="Mutation_status", x="Age", data=per_patient_data, palette=mypal_mut, order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
 sns.despine(offset=10, trim=False)
 #Plotting individual data points
-sns.swarmplot(y="Mutation_status", x="age", data=per_patient_data, size=8, color="GRAY", order=["BRAF","NRAS","NF1","KIT","multihit","Other"])
+sns.swarmplot(y="Mutation_status", x="Age", data=per_patient_data, size=8, color="GRAY", order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
 ```
 
 ## Correlation between copy number alterations and driver mutational status (Figure 2c)
@@ -46,7 +46,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 #Reading file with clinical data, copy number scores and mutation status of all samples
-clindata = pd.read_csv("data/Supplemetary_table_1.csv", sep=",")
+clindata = pd.read_csv("data/Supplemetary_Table_1.csv", sep=",")
 #Filtering out samples with no copy number data 
 cn_scores_filtered = cindata.dropna(subset=["GCS","FCS","BCS"])
 #Filtering the data frame to get just one sample per patient (giving priotity to primary samples if available)
@@ -69,7 +69,7 @@ sns.boxplot(data=per_patient_scores, y="GCS", x="Mutation_status", palette=mypal
 sns.despine(offset=10, trim=False)
 my_pal = {"metastasis": "indianred", "primary": "gray", "Recurrence":"blue", "Lesion_in_transit":"green", "LN_metastasis":"purple"}
 #Plotting individual data points over the boxplot
-sns.stripplot(x="Mutation_status", y="GCS", data=per_patient_scores, size=8, hue="Sample_type", linewidth=0, palette=my_pal,order=["NRAS","BRAF","NF1","KIT","Other"])
+sns.stripplot(x="Mutation_status", y="GCS", data=per_patient_scores, size=8, hue="Sample_type", linewidth=0, palette=my_pal,order=["NRAS","BRAF","NF1","KIT","QWT"])
 ```
 Statistical testing
 
@@ -82,7 +82,7 @@ NRAS_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "NRAS
 KIT_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "KIT", 'GCS']
 NF1_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "NF1", 'GCS']
 multihit_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "multihit", 'GCS']
-Other_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "Other", 'GCS']
+QWT_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "QWT", 'GCS']
 
 #Running Mann Whitney test
 from scipy.stats import shapiro
@@ -91,14 +91,14 @@ from scipy.stats import mannwhitneyu
 mannwhitneyu(BRAF_GCS, KIT_GCS)
 mannwhitneyu(BRAF_GCS, NF1_GCS)
 mannwhitneyu(BRAF_GCS, NRAS_GCS)
-mannwhitneyu(BRAF_GCS, Other_GCS)
+mannwhitneyu(BRAF_GCS, QWT_GCS)
 mannwhitneyu(NRAS_GCS, KIT_GCS)
 mannwhitneyu(NRAS_GCS, NF1_GCS)
-mannwhitneyu(NRAS_GCS, Other_GCS)
+mannwhitneyu(NRAS_GCS, QWT_GCS)
 mannwhitneyu(KIT_GCS, NF1_GCS)
-mannwhitneyu(KIT_GCS, Other_GCS)
+mannwhitneyu(KIT_GCS, QWT_GCS)
 mannwhitneyu(NF1_GCS, multihit_GCS)
-mannwhitneyu(NF1_GCS, Other_GCS)
+mannwhitneyu(NF1_GCS, QWT_GCS)
 ```
 
 ## Correlation between copy number alterations and anatomical site (Figure 2e)
@@ -116,18 +116,18 @@ my_palette2 = {"#FEB7BB", "#94A6D8", "#94D8A6"}
 sns.set_palette(my_palette2)
 mypal_mut = {"foot":"#FEB7BB", "subungual":"#94A6D8", "hand":"#94D8A6"}
 #Plotting the boxplot of GCS (global copy number scores) by driver mutational status
-sns.boxplot(data=per_patient_scores, y="GCS", x="Location", palette=mypal_mut, order=["foot","hand","subungual"])
+sns.boxplot(data=per_patient_scores, y="GCS", x="Primary_tumour_site", palette=mypal_mut, order=["foot","hand","subungual"])
 my_pal = {"metastasis": "indianred", "primary": "gray", "Recurrence":"blue", "Lesion_in_transit":"green", "LN_metastasis":"purple"}
-sns.stripplot(x="Location", y="GCS", data=per_patient_scores, size=8, color=".3", linewidth=0, hue="Sample_type",palette=my_pal, order=["foot","hand","subungual"] )
+sns.stripplot(x="Primary_tumour_site", y="GCS", data=per_patient_scores, size=8, color=".3", linewidth=0, hue="Sample_type",palette=my_pal, order=["foot","hand","subungual"] )
 sns.despine(offset=10, trim=False)
 ```
 Statistical testing
 
 ```python
 #Separating GCS scores by site
-HAND_GCS = per_patient_scores.loc[per_patient_scores['Location'] == "hand", 'GCS']
-FOOT_GCS = per_patient_scores.loc[per_patient_scores['Location'] == "foot", 'GCS']
-SUBUNGUAL_GCS = per_patient_scores.loc[per_patient_scores['Location'] == "subungual", 'GCS']
+HAND_GCS = per_patient_scores.loc[per_patient_scores['Primary_tumour_site'] == "hand", 'GCS']
+FOOT_GCS = per_patient_scores.loc[per_patient_scores['Primary_tumour_site'] == "foot", 'GCS']
+SUBUNGUAL_GCS = per_patient_scores.loc[per_patient_scores['Primary_tumour_site'] == "subungual", 'GCS']
 
 #Running Mann Whitney test
 mannwhitneyu(HAND_GCS, FOOT_GCS)
@@ -144,7 +144,7 @@ We compared de GCS (Global copy number scores) obtained from CNApp to the snv an
 ``` python
 sns.set(rc={'figure.figsize':(9,9)})
 sns.set_style("white")
-mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "Other":"lightgray", "KIT":"#7ec4cf"}
+mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWT":"lightgray", "KIT":"#7ec4cf"}
 sns_plot2 = sns.scatterplot(x="TMB", y="GCS", data=per_patient_cn_data, hue="Mutation_status", palette=mypal_mut, s=250, style="Mutation_status")
 
 ```
@@ -166,13 +166,13 @@ sns.set_style("white")
 sns.set_context("talk")
 my_palette = {"#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf"}
 sns.set_palette(my_palette)
-mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "Other":"lightgray", "KIT":"#7ec4cf"}
+mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWT":"lightgray", "KIT":"#7ec4cf"}
 #Plotting the boxplot
-sns.boxplot(x="Mutation_status", y="TMB", data=data, palette=mypal_mut , showfliers = False, order=["BRAF","NRAS","NF1","KIT","multihit","Other"]  )
+sns.boxplot(x="Mutation_status", y="TMB", data=data, palette=mypal_mut , showfliers = False, order=["BRAF","NRAS","NF1","KIT","multihit","QWT"]  )
 sns.despine(offset=10, trim=False)
 #Plotting individual data points
 my_pal = {"metastasis": "indianred", "primary": "gray", "Recurrence":"blue", "Lesion_in_transit":"green", "LN_metastasis":"purple"}
-sns.swarmplot(x="Mutation_status", y="TMB", data=data, size=8, hue="Sample_type", palette=my_pal, order=["BRAF","NRAS","NF1","KIT","multihit","Other"])
+sns.swarmplot(x="Mutation_status", y="TMB", data=data, size=8, hue="Sample_type", palette=my_pal, order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
 
 ```
 
@@ -212,12 +212,12 @@ sns.set_style("white")
 sns.set_context("talk")
 my_palette = {"#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf"}
 sns.set_palette(my_palette)
-mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "Other":"lightgray", "KIT":"#7ec4cf"}
+mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWT":"lightgray", "KIT":"#7ec4cf"}
 #Plotting the boxplot of Amerindian ancestry (Q2 (AMR))
-sns.boxplot(data=per_patient_ancestry_filtered, y="Q2 (AMR)", x="Mutation_status", palette=mypal_mut, showfliers = False, order=["BRAF","NRAS","NF1","KIT","multihit","Other"])
+sns.boxplot(data=per_patient_ancestry_filtered, y="Q2 (AMR)", x="Mutation_status", palette=mypal_mut, showfliers = False, order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
 sns.despine(offset=10, trim=False)
 #Plotting individual data points over the boxplot
-sns.stripplot(x="Mutation_status", y="Q2 (AMR)", data=per_patient_ancestry_filtered, color="gray", size=8, linewidth=0, order=["BRAF","NRAS","NF1","KIT","multihit","Other"])
+sns.stripplot(x="Mutation_status", y="Q2 (AMR)", data=per_patient_ancestry_filtered, color="gray", size=8, linewidth=0, order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
 
 #Grouping data by mutation status
 
