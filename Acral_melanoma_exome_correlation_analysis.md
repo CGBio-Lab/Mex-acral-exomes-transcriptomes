@@ -190,7 +190,7 @@ ancestry_data = pd.read_csv("data/Supplementary_Table_2.csv", sep=",")
 #Reading clinical data for all samples
 clinical_data = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
 #Reading IDs for one sample per patient
-per_patient_ID = pd.read_csv("data/Supplementary_Table_1.csv")
+per_patient_ID = pd.read_csv("data/One_sample_per_patient_ID.csv")
 
 #Filtering data to just one sample per patient
 clin_data_per_patient = per_patient_ID.merge(clinical_data, how="left", left_on="Tumor_Sample_Barcode", right_on="Sample")
