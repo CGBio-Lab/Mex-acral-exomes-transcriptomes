@@ -60,17 +60,11 @@ all_alt_cn = read.maf(maf=per_patient, cnTable=nf1_cn_data )
 #Reading file containing clinical data
 clindata = read.csv("data/Supplementary_Table_1.csv", sep=",", header=TRUE)
 
-#Choosing colors
-clincolors = RColorBrewer::brewer.pal(n = 4,name = 'Accent')
-#Matching colors with categories
-names(clincolors) = c("FEET", "HAND", "SUBUNGUAL")
-clincolors = list(Site = clincolors)
-
 #Plotting oncoplot with tumor location annotation
 
 clincolors = RColorBrewer::brewer.pal(n = 4,name = 'Accent')
 names(clincolors) = c("foot", "hand", "subungual")
-clincolors = list(location = clincolors)
+clincolors = list(Primary_tumour_site = clincolors)
 oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, showTumorSampleBarcodes=TRUE, annotationColor = clincolors, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("Primary_tumour_site"), bgCol="white")
 
 
@@ -82,7 +76,7 @@ oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, showTumorSampleBa
 clincolors = RColorBrewer::brewer.pal(n = 3,name = 'Dark2')
 #Matching colors with categories
 names(clincolors) = c("F", "M", "NA")
-clincolors = list(Gender = clincolors)
+clincolors = list(Sex = clincolors)
 #Plotting oncoplot
 oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, annotationColor = clincolors, showTumorSampleBarcodes=FALSE, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("Sex"), bgCol="white")
 
@@ -97,14 +91,14 @@ oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, showTumorSampleBa
 clincolors = RColorBrewer::brewer.pal(n = 4,name = 'Set1')
 #Matching colors with categories
 names(clincolors) = c("1", "0")
-clincolors = list(Ulceration = clincolors)
+clincolors = list(Ulceration_status = clincolors)
 #Plotting oncoplot
 oncoplot(all_alt_cn, draw_titv = FALSE, annotationDat=clindata, annotationColor = clincolors, showTumorSampleBarcodes=FALSE, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("Ulceration_status"), bgCol="white")
 
 #sample_type
 #For this annotation, tumor type was simplified in four categories: primary, LN_metastasis, metastasis, recurrence and lesion in transit
 #Simplifying sample type
-clindata$sample_type <- as.character(clindata$sample_type)
+clindata$sample_type <- as.character(clindata$Sample_type)
 clindata$sample_type[clindata$sample_type == "Pulmonar_metastasis"] <- "metastasis"
 clindata$sample_type[clindata$sample_type == "Local_recurrence"] <- "Recurrence"
 clindata$sample_type[clindata$sample_type == "LN_recurrence"] <- "Recurrence"
@@ -112,26 +106,26 @@ clindata$sample_type <- as.factor(clindata$sample_type)
 #Choosing colors
 clincolors = RColorBrewer::brewer.pal(n = 5,name = 'Paired')
 names(clincolors) = c("primary", "LN_metastasis", "metastasis", "Recurrence","Lesion_in_transit")
-clincolors = list(sample_type = clincolors)
+clincolors = list(Sample_type = clincolors)
 #Plotting oncoplot
 oncoplot(all_alt_cn, draw_titv = FALSE, annotationDat=clindata, annotationColor = clincolors, showTumorSampleBarcodes=FALSE, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("Sample_type"), bgCol="white")
 
 #Stage
 
 #Reading stage data as factors
-clindata$stage <- as.factor(clindata$stage)
+clindata$Tumour_stage <- as.factor(clindata$stage)
 #Choosing colors
 clincolors = RColorBrewer::brewer.pal(n = 5,name = 'BuPu')
 names(clincolors) = c("0", "1", "2","3","4")
-clincolors = list(stage = clincolors)
+clincolors = list(Tumour_stage = clincolors)
 #Plotting oncoplot
-oncoplot(all_alt_cn, draw_titv = FALSE, annotationDat=clindata, annotationColor = clincolors, showTumorSampleBarcodes=FALSE, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("stage"), bgCol="white")
+oncoplot(all_alt_cn, draw_titv = FALSE, annotationDat=clindata, annotationColor = clincolors, showTumorSampleBarcodes=FALSE, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("Tumour_stage"), bgCol="white")
 
 # Mutation status
 
 #Choosing colors
 clincolors = c("#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf")
-names(clincolors) = c("BRAF", "NRAS", "multihit","NF1","Other","KIT")
+names(clincolors) = c("BRAF", "NRAS", "multihit","NF1","QWT","KIT")
 clincolors = list(Mutation_status = clincolors)
 #Plotting oncoplot
 oncoplot(all_alt_cn, draw_titv = FALSE, annotationDat=clindata, annotationColor = clincolors, showTumorSampleBarcodes=FALSE, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53"), clinicalFeatures= c("Mutation_status"), bgCol="white")
@@ -164,14 +158,14 @@ nf1_cn_data = read.csv("data/somatic_variants/nf1_cn_data.csv", sep=",", header=
 per_patient <- "data/somatic_variants/Per_patient_MAF_maftools.maf"
 all_alt_cn = read.maf(maf=per_patient, cnTable=nf1_cn_data )
 #Reading file containing clinical data
-clindata = read.csv("data/Supplementary_table_1.csv", sep=",", header=TRUE)
+clindata = read.csv("data/Supplementary_Table_1.csv", sep=",", header=TRUE)
 
 #Choosing colors
 clincolors = RColorBrewer::brewer.pal(n = 4,name = 'Accent')
 names(clincolors) = c("foot", "hand", "subungual")
-clincolors = list(location = clincolors)
+clincolors = list(Primary_tumour_site = clincolors)
 #Plotting oncoplot
-oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, showTumorSampleBarcodes=FALSE, annotationColor = clincolors, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53", "KRAS", "PTPRJ", "ATM", "NF2", "RDH5"), clinicalFeatures= c("location"), bgCol="white", removeNonMutated=FALSE)
+oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, showTumorSampleBarcodes=FALSE, annotationColor = clincolors, genes = c("NRAS","BRAF","KIT","NF1","HRAS", "SPRED1", "TP53", "KRAS", "PTPRJ", "ATM", "NF2", "RDH5"), clinicalFeatures= c("Primary_tumour_site"), bgCol="white", removeNonMutated=FALSE)
 
 #Annotations can be generated in the same way as the main oncoplot.
 
