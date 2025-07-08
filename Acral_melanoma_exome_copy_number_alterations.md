@@ -72,7 +72,7 @@ clincolors = list(
     BRAF = "#FF9AA2",
     NRAS = "#D291BC",
     NF1 = "#A6D472",
-    Other = "lightgray",
+    QWT = "lightgray",
     KIT = "#7ec4cf"
   )
 )
