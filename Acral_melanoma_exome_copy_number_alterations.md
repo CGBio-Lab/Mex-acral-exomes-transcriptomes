@@ -207,9 +207,9 @@ Plotting driver mutated samples
 ``` R
 library(maftools)
 
-all.lesions = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/all_lesions.conf_95.txt")
-amp.genes = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/amp_genes.conf_95.txt")
-del.genes = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/del_genes.conf_95.txt")
+all.lesions = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/driver_all_lesions.conf_95.txt")
+amp.genes = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/driver_amp_genes.conf_95.txt")
+del.genes = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/driver_del_genes.conf_95.txt")
 scores.gis = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/scores.gistic") 
 
 gistic_data = readGistic( gisticAllLesionsFile = all.lesions, gisticAmpGenesFile = amp.genes, gisticDelGenesFile = del.genes, gisticScoresFile = scores.gis, cnLevel = "all", isTCGA= FALSE, verbose = TRUE)
@@ -221,9 +221,9 @@ Plotting driver wt samples
 ``` R
 library(maftools)
 
-all.lesions = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/all_lesions.conf_95.txt")
-amp.genes = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/amp_genes.conf_95.txt")
-del.genes = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/del_genes.conf_95.txt")
+all.lesions = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/wt_all_lesions.conf_95.txt")
+amp.genes = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/wt_amp_genes.conf_95.txt")
+del.genes = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/wt_del_genes.conf_95.txt")
 scores.gis = ("data/copy_number_alterations/ASCAT_driver_wt_acrals_hg38_one_per_patient_filtered_95ci/scores.gistic") 
 
 gistic_data = readGistic( gisticAllLesionsFile = all.lesions, gisticAmpGenesFile = amp.genes, gisticDelGenesFile = del.genes, gisticScoresFile = scores.gis, cnLevel = "all", isTCGA= FALSE, verbose = TRUE)
