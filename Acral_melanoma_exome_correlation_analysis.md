@@ -17,7 +17,7 @@ data = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
 #Reading IDs for one sample per patient (giving priority to primaries when available)
 per_patient_id = pd.read_csv("/data/One_sample_per_patient_ID.csv")
 #Filtering to get only one sample per patient
-per_patient_data = per_patient_id.merge(clindata, how="left", left_on="Tumor_Sample_Barcode", right_on="Sample")
+per_patient_data = per_patient_id.merge(data, how="left", left_on="Tumor_Sample_Barcode", right_on="Sample")
 
 #Setting up the aesthetics of the plot
 #Setting up the aesthetics of the plot
