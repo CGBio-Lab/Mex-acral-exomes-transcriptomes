@@ -160,7 +160,9 @@ import seaborn as sns
 import numpy as np
 
 #Reading data 
-data = pd.read_csv("Supplementary_Table_1.csv", sep=",")
+data = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
+#Simplifying sample type
+data["Sample_type"] = data["Sample_type"].replace({"LN_recurrence":"Recurrence", "Local_recurrence":"Recurrence", "Pulmonar_metastasis":"metastasis"})
 
 #Setting up the aesthetics of the plot
 sns.set(rc={'figure.figsize':(15,10)})
@@ -227,6 +229,7 @@ BRAF_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mut
 NF1_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="NF1"]
 KIT_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="KIT"]
 NF1_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="NF1"]
+NRAS_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="NRAS"]
 
 #Statistical analysis
 
