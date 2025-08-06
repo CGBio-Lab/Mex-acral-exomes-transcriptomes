@@ -47,6 +47,8 @@ import matplotlib.pyplot as plt
 
 #Reading file with clinical data, copy number scores and mutation status of all samples
 clindata = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
+#Simplifying sample type
+clindata["Sample_type"] = clindata["Sample_type"].replace({"LN_recurrence":"Recurrence", "Local_recurrence":"Recurrence", "Pulmonar_metastasis":"metastasis"})
 #Filtering out samples with no copy number data 
 cn_scores_filtered = clindata.dropna(subset=["GCS","FCS","BCS"])
 #Filtering the data frame to get just one sample per patient (giving priotity to primary samples if available)
