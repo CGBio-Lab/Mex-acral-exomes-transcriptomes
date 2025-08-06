@@ -147,7 +147,7 @@ We compared de GCS (Global copy number scores) obtained from CNApp to the snv an
 sns.set(rc={'figure.figsize':(9,9)})
 sns.set_style("white")
 mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWT":"lightgray", "KIT":"#7ec4cf"}
-sns_plot2 = sns.scatterplot(x="TMB", y="GCS", data=per_patient_cn_data, hue="Mutation_status", palette=mypal_mut, s=250, style="Mutation_status")
+sns_plot2 = sns.scatterplot(x="TMB", y="GCS", data=per_patient_scores, hue="Mutation_status", palette=mypal_mut, s=250, style="Mutation_status", linewidth=1.5, edgecolor="black")
 
 ```
 
