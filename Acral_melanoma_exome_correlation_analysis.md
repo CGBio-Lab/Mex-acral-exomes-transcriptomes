@@ -46,7 +46,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 #Reading file with clinical data, copy number scores and mutation status of all samples
-clindata = pd.read_csv("data/Supplemetary_Table_1.csv", sep=",")
+clindata = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
 #Filtering out samples with no copy number data 
 cn_scores_filtered = cindata.dropna(subset=["GCS","FCS","BCS"])
 #Filtering the data frame to get just one sample per patient (giving priotity to primary samples if available)
