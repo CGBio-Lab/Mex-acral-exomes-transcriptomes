@@ -40,7 +40,6 @@ ancestry <- read_excel('data/Supplementary_Table_2.xlsx', skip=1)  %>%
     rename_with(~ str_replace(., "\\s.*", "")) %>%
     mutate(ID=str_sub(Sample,1,-2))
 
-# ancestry <- read_csv("data/Supplementary_Table_2.csv")
 
 ## The SNVs and indel counts by tumor:
 snv_indel_data <- read_csv('data/Supplementary_Table_1.csv') %>% 
