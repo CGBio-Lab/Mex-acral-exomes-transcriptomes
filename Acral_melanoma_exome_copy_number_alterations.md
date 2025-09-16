@@ -8,6 +8,8 @@ Estimation of copy number, ploidy and cellularity was done using SEQUENZA and AS
 
 To identify significant regions altered by copy number alteration we used the tool GISTIC2 using as input one sample per patient (giving preference to primary tumors when available).
 
+To scrutinize the presence of deletions in previously known tumor suppressors NF1 and CDKN2A we used CNVkit to call copy number alterations against a pooled reference generated from the highest quality normal samples (as recommended by the authors) and generated bin level and segmented level log2 ratios. We calculated the log2 ratio estimated for homozygous deletions for each sample based on ASCAT's estimation of ploidy and purity and used specific criteria based on this data to decide if there was a presence of a homozygous deletion or not.
+
 ## Identifying significant peaks with GISTIC2 
 
 We generated GISTIC2 input file using ASCAT segmentation data outputs and formatting as instructed in GISTIC2 documentation. 
@@ -104,10 +106,10 @@ filter2_signif_regions = filtered_signif_regions.dropna(axis=1, how='all')
 amplification_peaks = filter2_signif_regions[filtered_signif_regions.astype(str).apply(lambda row: row.str.contains("Amplification", na=False)).any(axis=1)]
 deletion_peaks = filter2_signif_regions[filtered_signif_regions.astype(str).apply(lambda row: row.str.contains("Deletion", na=False)).any(axis=1)]
 # Count non-zero values per column (number of regions altered per sample) for amplifications
-non_zero_counts_Amp = (amplification_peaks.iloc[:, 9:] != 0).sum().reset_index()
+non_zero_counts_Amp = (amplification_peaks.iloc[:, 8:] != 0).sum().reset_index()
 non_zero_counts_Amp.columns = ['Tumor_Sample_Barcode', 'Count_Amp']
 # Count non-zero values per column (number of regions altered per sample) for deletions
-non_zero_counts_Del = (deletion_peaks.iloc[:, 9:] != 0).sum().reset_index()
+non_zero_counts_Del = (deletion_peaks.iloc[:, 8:] != 0).sum().reset_index()
 non_zero_counts_Del.columns = ['Tumor_Sample_Barcode', 'Count_Del']
 #Merging in one dataframe data for amplifications and deletions
 amp_del_counts = non_zero_counts_Amp.merge(non_zero_counts_Del, how="outer", on="Tumor_Sample_Barcode")
@@ -138,6 +140,11 @@ Data for the heatmap (average segment means per chromosome arm) as well as copy 
 Average segment mean values by chromosome arms were used to plot the heatmap. Samples were ordered based on mutational status. 
 
 ``` python
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from matplotlib import pyplot
 #Reading file ordered by mutational status
 cn_data = pd.read_csv("data/copy_number_alterations/cna_profile_Arms_by_mutation_status.csv", sep=",", index_col=0)
 sns.set(rc={'figure.figsize':(30,15)})
@@ -232,6 +239,206 @@ dev.off()
 
 ```
 
+## NF1 deletions scrutiny
+
+For NF1, a large gene, we considered homozygous focal deletions when at least two contiguous bins had log2 ratios at or below the calculated threshold for that sample, or at least one full exon has read coverage equal to zero. 
+
+Expected log2 ratio for a homzygous deletion was calculated with the following formula where CNseg=0 for homozygous deletions:
+
+         log2 Ratio = log2((1-p)2 + p  CNseg(1-p) 2 + p  ) 
+
+Where p=tumour purity, CNseg represents the absolute copy number, and φ equals sample ploidy. 
+
+To plot the bin level data and log2 ratios thresholds we used the following code (example of one sample):
+Code was based on documentation of Supplementary Fig10 of paper PMID: 35706047.
+
+``` R
+# Loading libraries
+library(ggplot2)
+library(ggtext)
+library(dplyr)
+library(reshape2)
+library(gridExtra)
+library(ggpubr)
+
+metadata <- read.table("data/copy_number_alterations/cnvkit/Hom_del_log2_estimates_per_sample.csv", header = TRUE, sep="\t")
+
+# Setting input files
+input_cnr = "data/copy_number_alterations/cnvkit/cnr_files_pass_samples/PD41020d.sample.dupmarked.cnr"
+input_cns = "data/copy_number_alterations/cnvkit/cns_files_pass_samples/PD41020d.sample.dupmarked.cns"
+
+# Reading input files
+PD_cnr = read.table(input_cnr, header = T)
+PD_cns = read.table(input_cns, header = T)
+
+# Specifying colors and size for bins covering NF1
+PD_cnr$col = ifelse(PD_cnr$start>=31094977 & PD_cnr$end<=31377675 & PD_cnr$gene != "Antitarget","red","gray")
+PD_cnr$size = ifelse(PD_cnr$start>=31094977 & PD_cnr$end<=31377675 & PD_cnr$gene != "Antitarget",0.6,0.4)
+
+## Plotting whole chr17
+PD40952a_plot = ggplot(filter(PD_cnr,chromosome=="chr17" & col=="gray" & (1:nrow(PD_cnr))%%6 == 0),aes((start+end)/2/1000000,log2)) +
+  geom_point(color="gray",size=0.03)+
+  geom_point(data=filter(PD_cnr,chromosome=="chr17" & col=="red"),aes((start+end)/2/1000000,log2),color="red",size=0.5)+
+  geom_segment(aes(x=start/1000000,xend=end/1000000,y=log2,yend=log2),color="darkorange1",lineend="round",linewidth=1,data=filter(PD_cns,chromosome=="chr17"))+
+  ylab("log<sub>2</sub>Ratio<br>(tumor/normal)")+  
+  xlab("Chromosome 17 (MB)")+
+  labs(title="PD41020d")+
+  geom_hline(yintercept=-2.73,linetype="dashed",color="darkorchid1",linewidth=0.35)+
+  coord_cartesian(xlim=c(0,83257441)/1000000,expand = F,clip = 'on')+
+  scale_y_continuous(limits=c(-8,1),breaks=c(-8,-6,-4,-2,-1,0,1,2),labels=c(-8,-6,-4,-2,-1,0,1,2))+
+  theme_bw()+
+  theme(
+    axis.title.y = element_markdown(size=unit(6.5,"pt"),margin=unit(c(0,0,0,0),"pt")),
+    axis.text.y=element_text(size=6),
+    axis.text.x = element_blank(),
+    axis.title.x=element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title=element_text(size=7.5,margin=unit(c(0,0,2,0),"pt"),hjust=0.5),
+    legend.position = "none",
+    panel.grid = element_blank(),
+    plot.margin=unit(c(4,4,0,5),"pt")
+  )
+
+ggsave(filename="PD41020d_chr17.pdf", plot=PD40952a_plot, width=6, height=2)
+
+#Plotting zoom to NF1 region
+PD40952a_plot_NF1 = ggplot(filter(PD_cnr,chromosome=="chr17" & col=="gray" & (1:nrow(PD_cnr))%%6 == 0),aes((start+end)/2/1000000,log2)) +
+  geom_point(color="gray",size=0.03)+
+  geom_point(data=filter(PD_cnr,chromosome=="chr17" & col=="red"),aes((start+end)/2/1000000,log2),color="red",size=0.5)+
+  geom_segment(aes(x=start/1000000,xend=end/1000000,y=log2,yend=log2),color="darkorange1",lineend="round",linewidth=1,data=filter(PD_cns,chromosome=="chr17"))+
+  ylab("log<sub>2</sub>Ratio<br>(tumor/normal)")+  
+  xlab("Chromosome 17 (MB)")+
+  labs(title="PD41020d")+
+  geom_hline(yintercept=-2.73,linetype="dashed",color="darkorchid1",linewidth=0.35)+
+  coord_cartesian(xlim=c(31094977-1000000,31377675+1000000)/1000000,expand = F,clip = 'on')+
+  scale_y_continuous(limits=c(-8,1),breaks=c(-8,-6,-4,-2,-1,0,1,2),labels=c(-8,-6,-4,-2,-1,0,1,2))+
+  theme_bw()+
+  theme(
+    axis.title.y = element_markdown(size=unit(6.5,"pt"),margin=unit(c(0,0,0,0),"pt")),
+    axis.text.y=element_text(size=6),
+    axis.text.x = element_blank(),
+    axis.title.x=element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title=element_text(size=7.5,margin=unit(c(0,0,2,0),"pt"),hjust=0.5),
+    legend.position = "none",
+    panel.grid = element_blank(),
+    plot.margin=unit(c(4,4,0,5),"pt")
+  )
+
+ggsave(filename="PD41020d_NF1.pdf", plot=PD40952a_plot_NF1, width=4, height=2)
+
+```
+
+## CDKN2A deletions scrutiny
+
+For CDKN2A, a small gene, we considered a sample as having a homozygous deletion if it had at least one bin below the threshold,  at least two other bins close to the threshold, and a noticeable difference in log2 ratios for bins falling in CDKN2A in comparison with its neighbours.
+
+Log2 ratios estimated for homozygous deletion were the same used for NF1 as they are calculated per sample. 
+
+To plot bin data and log2 ratio thresholds (all samples):
+
+``` R
+# Loading libraries
+library(ggplot2)
+library(ggtext)
+library(dplyr)
+library(reshape2)
+library(gridExtra)
+library(ggpubr)
+library(readr)
+
+metadata <- read.table("data/copy_number_alterations/cnvkit/Hom_del_log2_estimates_per_sample.csv", header = TRUE, sep="\t")
+
+make_plot <- function(Sample, log2ratio) {
+  
+  # Setting input files
+  input_cnr = paste0("data/copy_number_alterations/cnvkit/cnr_files_pass_samples/",Sample, ".sample.dupmarked.cnr")
+  input_cns = paste0("data/copy_number_alterations/cnvkit/cns_files_pass_samples/",Sample, ".sample.dupmarked.cns")
+  
+  # Reading input files
+  PD_cnr = read.table(input_cnr, header = T)
+  PD_cns = read.table(input_cns, header = T)
+  
+  # Specifying colors and size for bins covering NF1
+  PD_cnr$col = ifelse(PD_cnr$start>=21967752 & PD_cnr$end<=21995324 & PD_cnr$gene != "Antitarget","red","gray")
+  PD_cnr$size = ifelse(PD_cnr$start>=21967752 & PD_cnr$end<=21995324 & PD_cnr$gene != "Antitarget",0.6,0.4)
+  
+  
+  p1 = ggplot(filter(PD_cnr,chromosome=="chr9" & col=="gray" & (1:nrow(PD_cnr))%%6 == 0),aes((start+end)/2/1000000,log2)) +
+    geom_point(color="gray",size=0.03)+
+    geom_point(data=filter(PD_cnr,chromosome=="chr9" & col=="red"),aes((start+end)/2/1000000,log2),color="red",size=0.5)+
+    geom_segment(aes(x=start/1000000,xend=end/1000000,y=log2,yend=log2),color="darkorange1",lineend="round",linewidth=1,data=filter(PD_cns,chromosome=="chr9"))+
+    ylab("log<sub>2</sub>Ratio<br>(tumor/normal)")+  
+    xlab("Chromosome 9 (MB)")+
+    labs(title=Sample)+
+    geom_hline(yintercept=log2ratio,linetype="dashed",color="darkorchid1",linewidth=0.35)+
+    coord_cartesian(xlim=c(0,138394717)/1000000,expand = F,clip = 'on')+
+    scale_y_continuous(limits=c(-5,1),breaks=c(-4,-3,-2,-1,0,1,2),labels=c(-4,-3,-2,-1,0,1,2))+
+    theme_bw()+
+    theme(
+      axis.title.y = element_markdown(size=unit(6.5,"pt"),margin=unit(c(0,0,0,0),"pt")),
+      axis.text.y=element_text(size=6),
+      axis.text.x = element_blank(),
+      axis.title.x=element_blank(),
+      axis.ticks.x = element_blank(),
+      plot.title=element_text(size=7.5,margin=unit(c(0,0,2,0),"pt"),hjust=0.5),
+      legend.position = "none",
+      panel.grid = element_blank(),
+      plot.margin=unit(c(4,4,0,5),"pt")
+    )
+  return(p1)
+}  
+
+make_plot2 <- function(Sample, log2ratio) {
+  
+  # Setting input files
+  input_cnr = paste0("data/copy_number_alterations/cnvkit/cnr_files_pass_samples/",Sample, ".sample.dupmarked.cnr")
+  input_cns = paste0("data/copy_number_alterations/cnvkit/cns_files_pass_samples/",Sample, ".sample.dupmarked.cns")
+  
+  # Reading input files
+  PD_cnr = read.table(input_cnr, header = T)
+  PD_cns = read.table(input_cns, header = T)
+  
+  # Specifying colors and size for bins covering NF1
+  PD_cnr$col = ifelse(PD_cnr$start>=21967752 & PD_cnr$end<=21995324 & PD_cnr$gene != "Antitarget","red","gray")
+  PD_cnr$size = ifelse(PD_cnr$start>=21967752 & PD_cnr$end<=21995324 & PD_cnr$gene != "Antitarget",0.6,0.4)
+  
+  p2 = ggplot(filter(PD_cnr,chromosome=="chr9" & col=="gray" & (1:nrow(PD_cnr))%%6 == 0),aes((start+end)/2/1000000,log2)) +
+    geom_point(color="gray",size=0.03)+
+    geom_point(data=filter(PD_cnr,chromosome=="chr9" & col=="red"),aes((start+end)/2/1000000,log2),color="red",size=0.5)+
+    geom_segment(aes(x=start/1000000,xend=end/1000000,y=log2,yend=log2),color="darkorange1",lineend="round",linewidth=1,data=filter(PD_cns,chromosome=="chr9"))+
+    ylab("log<sub>2</sub>Ratio<br>(tumor/normal)")+ 
+    xlab("Chromosome 9 (MB)")+
+    labs(title=Sample)+
+    geom_hline(yintercept=log2ratio,linetype="dashed",color="darkorchid1",linewidth=0.35)+
+    coord_cartesian(xlim=c(21967752-1000000,21995324+1000000)/1000000,expand = F,clip = 'on')+
+    scale_y_continuous(limits=c(-5,1),breaks=c(-4,-3,-2,-1,0,1,2),labels=c(-4,-3,-2,-1,0,1,2))+
+    theme_bw()+
+    theme(
+      axis.title.y = element_markdown(size=unit(6.5,"pt"),margin=unit(c(0,0,0,0),"pt")),
+      axis.text.y=element_text(size=6),
+      axis.text.x = element_blank(),
+      axis.title.x=element_blank(),
+      axis.ticks.x = element_blank(),
+      plot.title=element_text(size=7.5,margin=unit(c(0,0,2,0),"pt"),hjust=0.5),
+      legend.position = "none",
+      panel.grid = element_blank(),
+      plot.margin=unit(c(4,4,0,5),"pt")
+    )
+  return(p2)
+}
+
+pdf("CDKN2A_all_samples_bin_data_plots.pdf", width = 14, height = 2)  # wider for 2 plots side by side
+for (i in 1:nrow(metadata)) {
+  p1 <- make_plot(metadata$Sample[i], metadata$log2ratio[i])
+  p2 <- make_plot2(metadata$Sample[i], metadata$log2ratio[i])
+  
+  grid.arrange(p1, p2, ncol = 2)  # put them side by side
+}
+dev.off()
+
+```
+
 # References 
 
 ASCAT
@@ -240,6 +447,9 @@ Van Loo, P., Nordgard, S. H., Lingjærde, O. C., Russnes, H. G., Rye, I. H., Sun
 CNApp
 Franch-Expósito, Sebastià et al. “CNApp, a tool for the quantification of copy number alterations and integrative analysis revealing clinical implications.” eLife vol. 9 e50267. 15 Jan. 2020, doi:10.7554/eLife.50267
 github: https://github.com/ait5/CNApp
+
+CNVkit
+Talevich, E., Shain, A.H., Botton, T., & Bastian, B.C. (2014). CNVkit: Genome-wide copy number detection and visualization from targeted sequencing. PLOS Computational Biology 12(4):e1004873
 
 maftools
 Mayakonda A, Lin DC, Assenov Y, Plass C, Koeffler HP. 2018. Maftools: efficient and comprehensive analysis of somatic variants in cancer. Genome Research. PMID: 30341162
