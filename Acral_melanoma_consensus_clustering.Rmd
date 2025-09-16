@@ -10,7 +10,7 @@ output:
 ---
 
 Overview
-This document provides code for running consensus clustering to identify molecular subtypes (two-level clustering approach, sample classification followed by genes), differential expression, enrichment analysis and visualization of gene expression signatures in 44 acral melanoma samples. The analysis also generates a heatmap showing expression patterns and boxplot comparisons of differentially expressed genes across clusters.
+This document provides code for running consensus clustering to identify molecular subtypes (two-level clustering approach, sample classification followed by gene modules), differential expression, enrichment analysis and visualization of gene expression signatures in 44 acral melanoma samples from Mexican patients. The analysis also generates a heatmap showing expression patterns and boxplot comparisons of differentially expressed genes across clusters.
 
 
 ## Load required libraries
@@ -42,27 +42,31 @@ library(reshape2)
 mt <- readRDS("acralMX_expression_data_update44s.rds")
 metadata <- read_csv("acralMX_metadata_cc_update.csv")
 
-
-# Prepare annotation data
+# Prepare annotation data 
 metadata <- as.data.frame(metadata)
 cc_anno <- metadata %>%
-  select(TMB, WGD) %>%
-  mutate(WGD = factor(WGD)) 
+  select(sample, TMB, WGD) %>%
+  mutate(WGD = factor(WGD)) %>%
+  as.data.frame()
 
-# Rownames
-rownames(cc_anno) <- cc_anno$sample_id
-cc_anno <- cc_anno[,-1]
+# Set rownames and remove sample column
+rownames(cc_anno) <- cc_anno$sample
+cc_anno <- cc_anno[, -1]
 
 # Define colors 
 colors <- list('WGD' = c('WGD' = 'deeppink4', 'no_WGD' = 'cadetblue1'),
                'TMB' = colorRamp2(c(0, 600), c("white", "red")))
 
-# Check dimensions 
+# Dimensions 
 dim(mt)
-dim(anno)
+dim(cc_anno)
 
-# Run consensus clustering 
-consensus_results = run_all_consensus_partition_methods(mt, anno = cc_anno, anno_col = colors)
+# Run consensus clustering with multiple methods
+consensus_results <- run_all_consensus_partition_methods(
+  mt, 
+  anno = cc_anno, 
+  anno_col = colors
+)
 
 # Generate report 
 cola_report(consensus_results, output_dir= "consensus_clustering_report")
@@ -85,7 +89,7 @@ membership_heatmap(SD_PAM_K3, k = 3)
 # Test association with WGD
 test_to_known_factors(consensus_results)
 
-# Extract classification
+# Extract sample cluster classification
 classification <- cbind(get_classes(consensus_results["SD:pam"], k = 3), 
                         get_membership(consensus_results["SD:pam"], k = 3))
 write.table(classification, file = "cc_classification.tsv", sep = "\t",  col.names=NA)
@@ -93,16 +97,141 @@ write.table(classification, file = "cc_classification.tsv", sep = "\t",  col.nam
 # Fix levels for visualization 
 split <- factor(paste0("Cluster\n", classification$class), levels=c("Cluster\n1","Cluster\n2","Cluster\n3"))
 
-# Get signatures and perform enrichment analysis 
+
+# Gene Signature analysis
+# Identify differentially expressed genes using F-test
 DE_signatures <- get_signatures(SD_PAM_K3, k = 3)
-write.csv(DE_signatures, "signatures.csv")
+table(DE_signatures$km)
 
-enrichment_results = functional_enrichment(SD_PAM_K3, k = 3, ontology = c("BP", "MF", "CC")
 
-# Extracting signatures
+# Create Gene ID mapping 
+gene_mapping <- data.frame(
+  which_row = 1:nrow(mt),  
+  ensembl_id = rownames(mt),  
+  stringsAsFactors = FALSE
+)
+
+gene_mapping$gene_symbol <- mapIds(
+  org.Hs.eg.db,
+  keys = gene_mapping$ensembl_id,
+  column = "SYMBOL",
+  keytype = "ENSEMBL",
+  multiVals = "first"
+)
+
+# Join 
+
+
+DE_genes_with_ids <- DE_signatures %>%
+  left_join(gene_mapping, by = "which_row") %>%
+  select(which_row, ensembl_id, gene_symbol, fdr, p_value, everything())
+
+# Determine cluster with highest expression
+DE_signatures_fc <- de_genes_with_ids %>%
+  rowwise() %>%
+  mutate(
+    highest_expr_cluster = which.max(c(mean_1, mean_2, mean_3)),
+    # Calculate  maximum difference between cluster means 
+max_mean_diff = max(c(mean_1, mean_2, mean_3)) - min(c(mean_1, mean_2, mean_3))
+) %>%
+ungroup()
+
+write.csv(DE_signatures_fc, "DE_gene_signatures.csv")
+
+
+# Functional Enrichment Analysis
+enrichment_results = functional_enrichment(object = SD_PAM_K3, k = 3, ontology = c("BP", "MF", "CC"))
+
+# Extract gene lists for each module
+genes_group1 <- rownames(mt)[DE_signatures$which_row[DE_signatures$km == 1]]
+genes_group2 <- rownames(mt)[DE_signatures$which_row[DE_signatures$km == 2]]
+genes_group3 <- rownames(mt)[DE_signatures$which_row[DE_signatures$km == 3]]
+
+# Map ensembl id to gene symbols for each module
+map_ids_to_symbols <- function(ensembl_ids) {
+  ensembl_ids <- sub("\\.[0-9]+$", "", ensembl_ids)
+  gene_symbols <- mapIds(org.Hs.eg.db, 
+                        keys = ensembl_ids,
+                        column = "SYMBOL", 
+                        keytype = "ENSEMBL",
+                        multiVals = "first")
+  return(gene_symbols)
+}
+all_genes_group1 <- map_ids_to_symbols(genes_group1)
+all_genes_group2 <- map_ids_to_symbols(genes_group2)
+all_genes_group3 <- map_ids_to_symbols(genes_group3)
+
+
+# Run GO enrichment analysis for each module
+enrichBP_1 <- enrichGO(
+  gene = all_genes_group1, 
+  OrgDb = org.Hs.eg.db,
+  keyType = "SYMBOL",  
+  ont = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05
+)
+
+enrichBP_2 <- enrichGO(
+  gene = all_genes_group2, 
+  OrgDb = org.Hs.eg.db,
+  keyType = "SYMBOL",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05)
+
+enrichBP_3 <- enrichGO(
+  gene = all_genes_group3, 
+  OrgDb = org.Hs.eg.db,
+  keyType = "SYMBOL",
+  ont = "BP",
+  pvalueCutoff = 0.05
+)
+
+BP1 <- as.data.frame(enrichBP_1)
+BP2 <- as.data.frame(enrichBP_2)
+BP3 <- as.data.frame(enrichBP_3)
+
+# Create enrichment plots
+dotplot(enrichBP_1, showCategory = 15, title = "Gene Module 1 - Biological Processes")
+dotplot(enrichBP_2, showCategory = 15, title = "Gene Module 2 - Biological Processes")
+dotplot(enrichBP_3, showCategory = 15, title = "Gene Module 3 - Biological Processes")
+
+# Calculate average scaled means 
+group1_means <- colMeans(DE_signatures[DE_signatures$km == 1, c("scaled_mean_1", "scaled_mean_2", "scaled_mean_3")])
+group2_means <- colMeans(DE_signatures[DE_signatures$km == 2, c("scaled_mean_1", "scaled_mean_2", "scaled_mean_3")])
+group3_means <- colMeans(DE_signatures[DE_signatures$km == 3, c("scaled_mean_1", "scaled_mean_2", "scaled_mean_3")])
+
+# Calculate and visualize expression patterns
+group1_means <- colMeans(DE_signatures[DE_signatures$km == 1, c("scaled_mean_1", "scaled_mean_2", "scaled_mean_3")])
+group2_means <- colMeans(DE_signatures[DE_signatures$km == 2, c("scaled_mean_1", "scaled_mean_2", "scaled_mean_3")])
+group3_means <- colMeans(DE_signatures[DE_signatures$km == 3, c("scaled_mean_1", "scaled_mean_2", "scaled_mean_3")])
+
+pattern_df <- data.frame(
+  Cluster = rep(c("1", "2", "3"), 3),
+  Expression = c(group1_means, group2_means, group3_means),
+  SignatureGroup = rep(c("Gene Module 1", "Gene Module 2", "Gene Module 3"), each = 3)
+)
+expression_pattern_plot <- ggplot(pattern_df, aes(x = Cluster, y = Expression, group = SignatureGroup, color = SignatureGroup)) +
+  geom_line(linewidth = 1.5) +
+  geom_point(size = 3) +
+  theme_classic() +
+  labs(
+    title = "Gene Expression Patterns Across Sample Clusters",
+    x = "Sample Cluster",
+    y = "Scaled Mean Expression"
+  ) +
+  theme(legend.position = "bottom")
+
+ggsave("gene_expression_patterns.pdf", expression_pattern_plot, width = 10, height = 6)
+
+
+#Prepare Data for Visualization 
+# Extract signature gene expression data
 mt_genes <- rownames(SD_PAM_K3)
 sig_index <- DE_signatures$which_row
 
+# Create gene signature matrix
 df <- data.frame(chr=SD_PAM_K3@top_value_list, stringsAsFactors=FALSE)
 gene_list <- rownames_to_column(df, var = "ensembl")
 gene_signature <- gene_list[sig_index,]
@@ -110,11 +239,19 @@ gene_signature <- gene_signature[,-2]
 subset_signature <- mt[rownames(mt) %in% gene_signature, ]  
 dim(subset_signature)
 
-# Prepare expression data for heatmap
+# Z-score normalization
 data_subset_signatures_z <- t(scale(t(subset_signature)))
 
-# Or load the precomputed z-score matrix
+#  Or Load the precomputed z-score matrix
 data_subset_signatures_z <- readRDS("DE_signatures_zscores.rds")
+
+if (file.exists("DE_signatures_zscores.rds")) {
+  data_subset_signatures_z <- readRDS("DE_signatures_zscores.rds")
+} else {
+  data_subset_signatures_z <- t(scale(t(subset_signature)))
+  saveRDS(data_subset_signatures_z, "DE_signatures_zscores.rds")
+}
+
 ```
 
 
@@ -128,7 +265,7 @@ print(paste("All expression samples in metadata:", all_expr_samples_in_metadata)
 all_metadata_samples_in_expr <- all(rownames(metadata) %in% colnames(data_subset_signatures_z))
 print(paste("All metadata samples in expression data:", all_metadata_samples_in_expr))
 
-# Verify metadata order 
+# Verify order 
 metadata_ordered <- metadata[colnames(data_subset_signatures_z), ]
 identical(rownames(metadata_ordered), colnames(data_subset_signatures_z))
 
@@ -155,14 +292,12 @@ data_subset_signatures_z <- data_subset_signatures_z[, samples_ht]
 identical(names(split), samples_ht)  
 identical(names(split), colnames(data_subset_signatures_z))  
 metadata_ordered <- metadata_ordered[samples_ht, ]
-metadata_ordered <- metadata[samples_ht, ]
 
 identical(rownames(metadata_ordered), samples_ht)  
 identical(rownames(metadata_ordered), colnames(data_subset_signatures_z)) 
 
 
-# Annotations for heatmap 
-
+# Annotations 
 # TMB
 tmb_breaks <- c(min(metadata_ordered$TMB, na.rm=TRUE), 
                 median(metadata_ordered$TMB, na.rm=TRUE), 
@@ -271,9 +406,9 @@ target_genes <- c("KRT1", "KRT2", "KRT9",
                   "VAX2", "SUSD5", "RNU4-1",
                   "RNU4ATAC", "SEC14L4", "GPR50")
 
-# Load signatures ranked
-DE_signatures_fc <- readRDS("DE_signatures_generank.rds")
 
+# Load precomputed signatures ranked
+DE_signatures_fc <- readRDS("DE_signatures_generank.rds")
 
 # Map gene symbols 
 map_target_genes <- function(gene_symbols, lookup_df) {
@@ -294,7 +429,6 @@ map_target_genes <- function(gene_symbols, lookup_df) {
 }
 
 target_gene_mapping <- map_target_genes(target_genes, DE_signatures_fc)
-
 
 
 # Finding positions and labels of genes in mt
@@ -320,7 +454,6 @@ get_target_gene_labels <- function(target_mapping, zscore_matrix) {
 gene_labels_info <- get_target_gene_labels(target_gene_mapping, data_subset_signatures_z)
 
 
-# Gene annotation
 gene_text_anno <- rowAnnotation(
   target_genes = anno_mark(
     at = gene_labels_info$positions,
@@ -334,7 +467,7 @@ gene_text_anno <- rowAnnotation(
 )
 
 
-# Create and save heatmap
+# Create and save 
 set.seed(123)
 pdf(height = 20, width = 20, file = "heatmap_cc_signature_across_clusters_040725_new.pdf")
 
@@ -391,7 +524,6 @@ genes_of_interest <- c("KRT1", "KRT2", "KRT9",
                        "KPRP", "FOXN1", "CRB3")
 
 
-
 # Data preparation
 map_genes_to_ensembl <- function(gene_symbols, lookup_df) {
   mapped_genes <- lookup_df %>%
@@ -407,7 +539,6 @@ map_genes_to_ensembl <- function(gene_symbols, lookup_df) {
   return(mapped_genes)
 }
 
-
 # Map genes
 gene_mapping <- map_genes_to_ensembl(genes_of_interest, DE_signatures_fc)
 selected_genes_ensembl <- gene_mapping$ensembl_id
@@ -415,20 +546,20 @@ names(selected_genes_ensembl) <- gene_mapping$gene_symbol
 selected_expr <- mt[selected_genes_ensembl, ]
 rownames(selected_expr) <- names(selected_genes_ensembl)
 
-
 # Prepare for plotting
 plot_data <- melt(t(selected_expr))
 colnames(plot_data) <- c("Sample", "Gene", "Expression")
 plot_data$Sample <- as.character(plot_data$Sample)
-#classification <- classification %>% rownames_to_column(var = "Sample") %>% glimpse()
 
+# Convert sample cluster classification to df
+classification_df <- classification %>% 
+  rownames_to_column(var = "Sample")
 
 # Merge with cluster class
 plot_data <- merge(plot_data, 
-                  classification[, c("Sample", "class")], 
+                  classification_df[, c("Sample", "class")], 
                   by = "Sample",
                   all.x = TRUE)
-
 plot_data$Cluster <- as.factor(plot_data$class)
 
 
@@ -447,7 +578,6 @@ get_significance <- function(p) {
   if(p <= 0.05) return("*")
   return("ns")
 }
-
 
 create_manual_comparison_plot <- function(data, gene_name) {
   gene_data <- data[data$Gene == gene_name, ]
@@ -478,7 +608,6 @@ if(max_bracket_y > 15) {
 }
 
 bracket_spacing <- plot_height * 0.07  
-
 
 
   # Plot
@@ -632,6 +761,11 @@ final_plot <- create_publication_layout(manual_plot_list)
 dev.off()
 
 final_plot <- create_publication_layout(manual_plot_list) 
+cat("\nAnalysis completed successfull!\n")
+
+
+# Session Info
+sessionInfo()
 ```
 
 
