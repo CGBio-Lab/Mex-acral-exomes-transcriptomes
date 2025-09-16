@@ -2,38 +2,6 @@
 # Correlation analysis 
 ## Author: Patricia Basurto Lozada
 
-## Comparing age at diagnosis between samples with different driver mutational status 
-
-We compared age at diagnosis with driver mutational status using one sample per patient (prioritizing primaries when available).
-
-``` python 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-
-#Reading data 
-data = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
-#Reading IDs for one sample per patient (giving priority to primaries when available)
-per_patient_id = pd.read_csv("/data/One_sample_per_patient_ID.csv")
-#Filtering to get only one sample per patient
-per_patient_data = per_patient_id.merge(data, how="left", left_on="Tumor_Sample_Barcode", right_on="Sample")
-
-#Setting up the aesthetics of the plot
-#Setting up the aesthetics of the plot
-sns.set(rc={'figure.figsize':(8,20)})
-sns.set_style("white")
-sns.set_context("talk")
-my_palette = {"#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf"}
-sns.set_palette(my_palette)
-mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWR":"lightgray", "KIT":"#7ec4cf"}
-#Plotting the boxplot
-sns.boxplot(y="Mutation_status", x="Age", data=per_patient_data, palette=mypal_mut, order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
-sns.despine(offset=10, trim=False)
-#Plotting individual data points
-sns.swarmplot(y="Mutation_status", x="Age", data=per_patient_data, size=8, color="GRAY", order=["BRAF","NRAS","NF1","KIT","multihit","QWT"])
-```
-
 ## Correlation between copy number alterations and driver mutational status (Figure 2c)
 
 To compare the burden of copy number alterations between groups of samples with different driver mutational status, we used scores generated with the web application CNApp. This score were generated using ASCAT output data where segment means (seg.mean) were calculated as log2(cn/ploidy) and default parameters in CNApp.
@@ -67,11 +35,11 @@ my_palette = {"#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf"
 sns.set_palette(my_palette)
 mypal_mut = {"BRAF":"#FF9AA2", "NRAS":"#D291BC", "multihit":"#FFD758", "NF1":"#A6D472", "QWT":"lightgray", "KIT":"#7ec4cf"}
 #Plotting the boxplot of GCS (global copy number scores) by driver mutational status
-sns.boxplot(data=per_patient_scores, y="GCS", x="Mutation_status", palette=mypal_mut, showfliers = False, order=["NRAS","BRAF","NF1","KIT","QWT"])
+sns.boxplot(data=per_patient_scores, y="GCS", x="Mutation_status", palette=mypal_mut, showfliers = False, order=["BRAF","NRAS","NF1","KIT","QWT"])
 sns.despine(offset=10, trim=False)
 my_pal = {"metastasis": "indianred", "primary": "gray", "Recurrence":"blue", "Lesion_in_transit":"green", "LN_metastasis":"purple"}
 #Plotting individual data points over the boxplot
-sns.stripplot(x="Mutation_status", y="GCS", data=per_patient_scores, size=8, hue="Sample_type", linewidth=0, palette=my_pal,order=["NRAS","BRAF","NF1","KIT","QWT"])
+sns.stripplot(x="Mutation_status", y="GCS", data=per_patient_scores, size=8, hue="Sample_type", linewidth=0, palette=my_pal,order=["BRAF","NRAS","NF1","KIT","QWT"])
 ```
 Statistical testing
 
@@ -83,7 +51,6 @@ BRAF_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "BRAF
 NRAS_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "NRAS", 'GCS']
 KIT_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "KIT", 'GCS']
 NF1_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "NF1", 'GCS']
-multihit_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "multihit", 'GCS']
 QWT_GCS = per_patient_scores.loc[per_patient_scores['Mutation_status'] == "QWT", 'GCS']
 
 #Running Mann Whitney test
@@ -99,7 +66,6 @@ mannwhitneyu(NRAS_GCS, NF1_GCS)
 mannwhitneyu(NRAS_GCS, QWT_GCS)
 mannwhitneyu(KIT_GCS, NF1_GCS)
 mannwhitneyu(KIT_GCS, QWT_GCS)
-mannwhitneyu(NF1_GCS, multihit_GCS)
 mannwhitneyu(NF1_GCS, QWT_GCS)
 ```
 
@@ -163,7 +129,6 @@ import numpy as np
 data = pd.read_csv("data/Supplementary_Table_1.csv", sep=",")
 #Simplifying sample type
 data["Sample_type"] = data["Sample_type"].replace({"LN_recurrence":"Recurrence", "Local_recurrence":"Recurrence", "Pulmonar_metastasis":"metastasis"})
-
 #Setting up the aesthetics of the plot
 sns.set(rc={'figure.figsize':(15,10)})
 sns.set_style("white")
@@ -230,6 +195,7 @@ NF1_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Muta
 KIT_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="KIT"]
 NF1_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="NF1"]
 NRAS_patients = per_patient_ancestry_filtered[per_patient_ancestry_filtered["Mutation_status"]=="NRAS"]
+
 
 #Statistical analysis
 
