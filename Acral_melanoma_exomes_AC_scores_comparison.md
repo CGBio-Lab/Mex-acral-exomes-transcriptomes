@@ -19,7 +19,7 @@ ratios = pd.read_csv("/data/AC_scores/ratios_ac_score.csv", sep=","
 #Changing PR for PD to match DNA ids
 ratios['Sample'] = ratios['Sample'].str.replace('PR', 'PD')
 #Reading clincal data 
-clindata = pd.read_csv("/data/Supplementary_Table_1", sep=",")
+clindata = pd.read_csv("/data/Supplementary_Table_1.csv", sep=",")
 #Mergin ratio data with clinical data
 ratios_clin = ratios.merge(clindata, how="left", on="Sample")
 #Generating a new column to annotate if sample is BRAF mutated or BRAF wt 
