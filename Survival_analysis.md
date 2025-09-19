@@ -1,13 +1,18 @@
 # Survival analysis 
 ## Author: Timothy Bishop
+## Modified by Johana Itzel
 
-Overall and recurrence free survival analysis were done using STATA. Supplementary Table 1 was used as input after filtering only patients with primary samples (85 patients). Further filtering was done for each analysis if necessary for patiens with missing data used in the analysis (e.g. ancestry, RNAseq cluster data)
+Overall and recurrence free survival analysis were done using STATA 19.5. Supplementary Table 1 was used as input after filtering only patients with primary samples (85 patients). Further filtering was done for each analysis if necessary for patiens with missing data used in the analysis (e.g. ancestry, RNAseq cluster data)
 
 ## Recurrence
 
 Multivariate logistic regression to test the association of any driver mutation on recurrnce-free survival (Supplementary Table 22) 
 
-``` 
+```
+count
+replace last_note = subinstr(last_note,"/",".", 5)
+generate dln = date(last_note, "DMY")
+format dln %td
 keep if tumor_type == "primary" 
 duplicates drop patient_file, force
 generate dxdate = date(date_of_diagnosis,"DMY")
@@ -42,7 +47,35 @@ replace cstage = . if cstage == 0
 replace cstage = min(cstage,3)
 replace cstage = max(cstage,2)
 destring cluster, replace ignore("NA")
-Note: imut is any driver mutation
+Note: imut is any driver mutation 
+ 
+******
+*Import ancestry data
+******
+clear
+keep tumor_sample_barcode
+generate ID = substr(tumor_sample_barcode,1,7)
+save tumor_sample_list.dta, replace
+count
+clear
+import excel "Supplementary_Table_2.xlsx", sheet("Supplementary_Table_2") firstrow
+keep if strpos(ID,"PD") > 0
+replace ID = substr(ID,1,7)
+merge 1:1 ID using tumor_sample_list.dta, generate(mm)
+tab mm
+keep if mm > 1.5
+drop mm
+count
+merge 1:1 tumor_sample_barcode, generate(mm)
+tab mm
+drop mm
+save amdata.dta, replace
+*Note: tumor_sample_list.dta is a list of the saple used per patient.
+
+***DATA READY FOR ANALYSIS
+****************************************************************
+
+
 tab imut recurrence, all row
 
 +----------------+
@@ -68,11 +101,12 @@ Cramér’s V = 0.2947
 gamma = 0.5429 ASE = 0.160
 Kendall’s tau-b = 0.2947 ASE = 0.104
 
+
 generate dxcat = .
 replace dxcat = 0 if dxyear < 2014.5
 replace dxcat = 1 if dxyear > 2016.5
-
-logistic recurrence imut sex age cstage dxdate Q2AMR
+stset t, failure(recurrence) origin(time dxdate) enter(time condate)
+xi: logistic recurrence imut sex age cstage dxdate Q2AMR
 
 Logistic regression                                         Number of obs = 73
                                                             LR chi2(6) = 18.11
@@ -89,6 +123,8 @@ dxdate       | 1.000076  .000339    0.23   0.822  .9994121    1.000741
 Q2AMR        | 21.06773  33.44283   1.92   0.055  .9384777    472.9461
 _cons        | .0001449  .0010369  -1.24   0.217  1.18e-10    178.0292
 ------------------------------------------------------------------------------
+
+
 ```
 
 Multivariate logistic regression to test the association of cluster assignmnet on recurrence-free survival (Supplementary Table 23)
@@ -156,6 +192,7 @@ tab tag
 drop tag
 generate Mutation = upper(mutation)
 replace Mutation = " WT" if mutation == "QWT"
+generate follow = t - dxdate
 
 tab Mutation death, row all
 +----------------+
@@ -167,8 +204,8 @@ tab Mutation death, row all
            |         death
 Mutation   |   0             1    | Total
 -----------+----------------------+----------
-       WT  |   40            3    | 43
-           |   93.02         6.98 | 100.00
+       WT  |   39            4    | 43
+           |   90.70         9.30 | 100.00
 -----------+----------------------+----------
       BRAF |   7             4    | 11
            |   63.64        36.36 | 100.00
@@ -185,13 +222,15 @@ Mutation   |   0             1    | Total
       NRAS |   9             3    | 12
            |   75.00        25.00 | 100.00
 -----------+----------------------+----------
-     Total |   71           14    | 85
-           | 83.53          16.47 | 100.00
-Pearson chi2(5) = 12.8676 Pr = 0.025
-likelihood-ratio chi2(5) = 11.3010 Pr = 0.046
-Cramér’s V = 0.3891
-gamma = 0.4118 ASE = 0.159
-Kendall’s tau-b = 0.2100 ASE = 0.093
+     Total |   70           15    | 85
+           | 82.35          17.65 | 100.00
+
+          Pearson chi2(5) =  10.9539   Pr = 0.052
+ Likelihood-ratio chi2(5) =   9.6104   Pr = 0.087
+               Cramér's V =   0.3590
+                    gamma =   0.3504  ASE = 0.168
+          Kendall's tau-b =   0.1782  ASE = 0.096
+           Fisher's exact =                 0.042
 
 tab imut death, all exact row
 +----------------+
@@ -200,53 +239,63 @@ tab imut death, all exact row
 | frequency      |
 | row percentage |
 +----------------+
-           |         death
-      imut |    0            1    | Total
+
+        |         death
+      imut |         0          1 |     Total
 -----------+----------------------+----------
-         0 |   40            3    | 43
-           |   93.02         6.98 | 100.00
+         0 |        39          4 |        43 
+           |     90.70       9.30 |    100.00 
 -----------+----------------------+----------
-         1 |   31            11   | 42
-           |   73.81         26.19| 100.00
+         1 |        31         11 |        42 
+           |     73.81      26.19 |    100.00 
 -----------+----------------------+----------
-     Total |   71            14   | 85
-           |   83.53         16.47| 100.00
-Pearson chi2(1) = 5.7013 Pr = 0.017
-likelihood-ratio chi2(1) = 5.9920 Pr = 0.014
-Cramér’s V = 0.2590
-gamma = 0.6510 ASE = 0.200
-Kendall’s tau-b = 0.2590 ASE = 0.096
-Fisher’s exact = 0.021
-1-sided Fisher’s exact = 0.017
+     Total |        70         15 |        85 
+           |     82.35      17.65 |    100.00 
+
+          Pearson chi2(1) =   4.1698   Pr = 0.041
+ Likelihood-ratio chi2(1) =   4.3015   Pr = 0.038
+               Cramér's V =   0.2215
+                    gamma =   0.5515  ASE = 0.220
+          Kendall's tau-b =   0.2215  ASE = 0.100
+           Fisher's exact =                 0.050
+   1-sided Fisher's exact =                 0.038
 
 Logrank test of homogeneity (group=imut):
-Log-rank test for equality of survivor functions
-      | Events        Events
-imut  | observed      expected
+
+Equality of survivor functions
+Log-rank test
+
+      |  Observed       Expected
+imut  |    events         events
 ------+-------------------------
-    0 |   3            6.91
-    1 |  11            7.09
+    0 |         4           7.43
+    1 |        11           7.57
 ------+-------------------------
-Total |  14           14.00
-chi2(1) = 4.38
-Pr>chi2 = 0.0363
+Total |        15          15.00
+
+                chi2(1) =   3.13
+                Pr>chi2 = 0.0766
 
 
 Logrank test of homogeneity (group=Mutation):
-Log-rank test for equality of survivor functions
-         | Events      Events
-Mutation | observed    expected
+
+Equality of survivor functions
+Log-rank test
+
+         |  Observed       Expected
+Mutation |    events         events
 ---------+-------------------------
-      WT |  3            6.91
-    BRAF |  4            1.88
-     KIT |  1            1.74
-MULTIHIT |  1            0.04
-     NF1 |  2            1.08
-    NRAS |  3            2.33
+      WT |         4           7.43
+    BRAF |         4           2.02
+     KIT |         1           1.85
+MULTIHIT |         1           0.05
+     NF1 |         2           1.17
+    NRAS |         3           2.48
 ---------+-------------------------
-   Total | 14           14.00
-chi2(5) = 28.94
-Pr>chi2 = 0.0000
+   Total |        15          15.00
+
+                   chi2(5) =  21.88
+                   Pr>chi2 = 0.0006
 ``` 
 Cox proportional hazards analysis testing the association of any mutation on overall survival. (Supplementary Table 26)
 
@@ -257,6 +306,7 @@ replace cstage = . if cstage == 0
 replace cstage = min(cstage,3)
 replace cstage = max(cstage,2)
 
+
 stset t, failure(death) origin(time dxdate) enter(time condate)
 failure event: death != 0 & death < .
 obs. time interval: (origin, t]
@@ -266,32 +316,36 @@ t for analysis: (time-origin)
 origin: time dxdate
 
 xi:stcox imut sex age cstage Q2AMR
-failure _d: death
-analysis time _t: (t-origin)
-origin: time dxdate
-enter on or after: time condate
-Iteration 0: log likelihood = -41.052839
-Iteration 1: log likelihood = -35.488137
-Iteration 2: log likelihood = -35.332644
-Iteration 3: log likelihood = -35.331498
-Iteration 4: log likelihood = -35.331498
+Failure _d: death
+   Analysis time _t: (t-origin)
+             Origin: time dxdate
+  Enter on or after: time condate
+
+Iteration 0:  Log likelihood = -43.760889
+Iteration 1:  Log likelihood = -38.280201
+Iteration 2:  Log likelihood = -38.182057
+Iteration 3:  Log likelihood = -38.181793
 Refining estimates:
-Iteration 0: log likelihood = -35.331498
-Cox regression -- no ties
-No. of subjects = 73                        Number of obs = 73
-No. of failures = 12
-Time at risk = 84082
-                                            LR chi2(5) = 11.44
-Log likelihood = -35.331498                 Prob > chi2 = 0.0433
+Iteration 0:  Log likelihood = -38.181793
+
+Cox regression with no ties
+
+No. of subjects =     73                                Number of obs =     73
+No. of failures =     13
+Time at risk    = 83,920
+                                                        LR chi2(5)    =  11.16
+Log likelihood = -38.181793                             Prob > chi2   = 0.0483
+
 ------------------------------------------------------------------------------
-          _t | Haz. Ratio    Std. Err.     z      P>|z|     [95% Conf. Interval]
+          _t | Haz. ratio   Std. err.      z    P>|z|     [95% conf. interval]
 -------------+----------------------------------------------------------------
-        imut | 5.067486     4.144197     1.98     0.047     1.020185  25.17134
-         sex | 1.855816     1.160979     0.99     0.323      .5445432 6.324665
-         age | 1.025344      .033649     0.76     0.446      .9614689 1.093462
-      cstage | 3.519382     2.571598     1.72     0.085      .8404214 14.73791
-       Q2AMR | .0651891      .1089418   -1.63     0.102      .0024642 1.724543
+        imut |   3.185216   2.253241     1.64   0.101      .796148    12.74336
+         sex |   1.573245   .9712176     0.73   0.463     .4691595    5.275602
+         age |   1.027321    .032233     0.86   0.390     .9660492     1.09248
+  _Icstage_3 |   4.051354   2.897533     1.96   0.050     .9972859    16.45813
+       Q2AMR |   .0445928   .0713461    -1.94   0.052     .0019382    1.025987
 ------------------------------------------------------------------------------
+i.cstage          _Icstage_2-3        (naturally coded; _Icstage_2 omitted)
 
 ```
 
@@ -310,28 +364,50 @@ tab ncluster death, row all
 +----------------+
 | Key            |
 |----------------|
-| frequency      |
+|   frequency    |
 | row percentage |
 +----------------+
-           |        death
-ncluster   |    0            1    | Total
------------+----------------------+----------
-         2 |    10           6    | 16
-           |    62.50       37.50 | 100.00
------------+----------------------+----------
-         1 |    14           0    | 14
-           |    100.00       0.00 | 100.00
------------+----------------------+----------
-         3 |    11           3    | 14
-           |    78.57       21.43 | 100.00
------------+----------------------+----------
-     Total |    35           9    | 44
-           |    79.55       20.45 | 100.00
-Pearson chi2(2) = 6.4653 Pr = 0.039
-likelihood-ratio chi2(2) = 8.8660 Pr = 0.012
-Cramér’s V = 0.3833
-gamma = -0.3514 ASE = 0.321
-Kendall’s tau-b = -0.1732 ASE = 0.162
 
-generate follow = t - dxdate
-``` 
+           |         death
+  ncluster |         0          1 |     Total
+-----------+----------------------+----------
+         1 |         9          7 |        16 
+           |     56.25      43.75 |    100.00 
+-----------+----------------------+----------
+         2 |        14          0 |        14 
+           |    100.00       0.00 |    100.00 
+-----------+----------------------+----------
+         3 |        11          3 |        14 
+           |     78.57      21.43 |    100.00 
+-----------+----------------------+----------
+     Total |        34         10 |        44 
+           |     77.27      22.73 |    100.00 
+
+          Pearson chi2(2) =   8.1576   Pr = 0.017
+ Likelihood-ratio chi2(2) =  10.6862   Pr = 0.005
+               Cramér's V =   0.4306
+                    gamma =  -0.4344  ASE = 0.290
+          Kendall's tau-b =  -0.2265  ASE = 0.158
+```
+
+```
+Likelihood-ratio test statistic of homogeneity (group=ncluster):
+chi2( 2 ) = 13.783539,   P = .00101611
+ 
+Logrank test of homogeneity (group=ncluster):
+
+Equality of survivor functions
+Log-rank test
+
+         |  Observed       Expected
+ncluster |    events         events
+---------+-------------------------
+       1 |         7           3.10
+       2 |         0           3.99
+       3 |         3           2.91
+---------+-------------------------
+   Total |        10          10.00
+
+                   chi2(2) =   8.99
+                   Pr>chi2 = 0.0111
+```
