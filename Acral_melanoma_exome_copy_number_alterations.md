@@ -53,7 +53,7 @@ del.genes = ("data/copy_number_alterations/del_genes.conf_95.txt")
 scores.gis = ("data/copy_number_alterations/scores.gistic") 
 
 gistic_data = readGistic( gisticAllLesionsFile = all.lesions, gisticAmpGenesFile = amp.genes, gisticDelGenesFile = del.genes, gisticScoresFile = scores.gis, cnLevel = "all", isTCGA= FALSE, verbose = TRUE)
-gisticChromPlot(gistic= gistic_data, ref.build ="hg38",  markBands= FALSE)
+gisticChromPlot(gistic= gistic_data, ref.build ="hg38",  markBands= NULL)
 
 ```
 ## Plotting GISTIC significant peaks oncoplot (Supplementary Figure 5)
@@ -220,7 +220,7 @@ del.genes = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_
 scores.gis = ("data/copy_number_alterations/ASCAT_driver_mutated_acrals_hg38_one_per_patient_filtered_95ci/scores.gistic") 
 
 gistic_data = readGistic( gisticAllLesionsFile = all.lesions, gisticAmpGenesFile = amp.genes, gisticDelGenesFile = del.genes, gisticScoresFile = scores.gis, cnLevel = "all", isTCGA= FALSE, verbose = TRUE)
-gisticChromPlot(gistic= gistic_data, ref.build ="hg38",  markBands= FALSE)
+gisticChromPlot(gistic= gistic_data, ref.build ="hg38",  markBands= NULL)
 ```
 
 Plotting driver wt samples
