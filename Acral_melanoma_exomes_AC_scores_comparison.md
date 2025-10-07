@@ -15,7 +15,7 @@ import seaborn as sns
 from matplotlib import pyplot
 
 #Importing score data for 77 samples, one sample per patient
-ratios = pd.read_csv("/data/AC_scores/ratios_ac_score.csv", sep=","
+ratios = pd.read_csv("/data/AC_scores/ratios_ac_score.csv", sep=",")
 #Changing PR for PD to match DNA ids
 ratios['Sample'] = ratios['Sample'].str.replace('PR', 'PD')
 #Reading clincal data 
@@ -67,7 +67,7 @@ newell_data.loc[(newell_data['ID'] == 'MELA_0270') & (newell_data['only_BRAFmut_
 
 
 #Generating the boxplot comparing BRAF mutated vs BRAF wildtype scores
-ssns.set(rc={'figure.figsize':(9,9)})
+sns.set(rc={'figure.figsize':(9,9)})
 sns.set_style("white")
 sns.set_context("talk")
 my_palette = {"#FF9AA2", "#D291BC", "#FFD758", "#A6D472", "lightgray", "#7ec4cf"}
