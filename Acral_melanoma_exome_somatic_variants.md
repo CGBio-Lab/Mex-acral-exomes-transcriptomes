@@ -41,7 +41,7 @@ print(signif_genes)
 4       NF1 1.122492e-04
 
 ## Writing output with selection coefficients and q values
-write.csv(sel_cv, 'output/sel_cv.csv', row.names=FALSE)
+write.csv(sel_cv, 'sel_cv.csv', row.names=FALSE)
 
 ```
 # Visualization of mutational profile as an oncoplot (Figure 1a)
@@ -87,6 +87,7 @@ oncoplot(all_alt_cn, draw_titv = TRUE, annotationDat=clindata, showTumorSampleBa
 
 #Ulceration
 
+clindata$Ulceration_status <- as.factor(clindata$Ulceration_status)
 #Choosing colors
 clincolors = RColorBrewer::brewer.pal(n = 4,name = 'Set1')
 #Matching colors with categories
@@ -141,7 +142,7 @@ Mutations affecting genes that were considered relevant were visualized generati
 lollipopPlot(maf=all_alt_cn, gene="NRAS",  AACol = 'HGVSp_Short', labelPos = 'all', showMutationRate=TRUE)
 lollipopPlot(maf=all_alt_cn, gene="BRAF",  AACol = 'HGVSp_Short', labelPos = 'all', showMutationRate=TRUE)
 lollipopPlot(maf=all_alt_cn, gene="NF1",  AACol = 'HGVSp_Short', labelPos = 'all', showMutationRate=TRUE)
-lollipopPlot(maf=all_al_cnt, gene="KIT",  AACol = 'HGVSp_Short', labelPos = 'all', showMutationRate=TRUE)
+lollipopPlot(maf=all_alt_cn, gene="KIT",  AACol = 'HGVSp_Short', labelPos = 'all', showMutationRate=TRUE)
 
 ```
 # PLotting oncoplot adding PTPRJ, ATM, NF2, KRAS and RDH5 (Supplementary Figure 2a )
