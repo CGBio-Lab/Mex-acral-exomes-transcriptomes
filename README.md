@@ -23,7 +23,7 @@ This repository contains the following files:
 
 * Acral_melanoma_exome_correlation_analysis
 
-    This file contains the code used to plot and compare the burden of CN alterations by driver mutational status (Figure 2c), the code used to plot and compare the burden of CN alterations between different anatomical sites (Figure 2e) and the code to see the correlation between the burden of CN alterations and TMB (Figure 2d). It also contains code to compare and plot TMB by druver mutational status (Supplementary Figure 6) and to compare the proportion of amerindian ancestry by driver mutational status (Supplementary Figure 3).
+    This file contains the code used to plot and compare the burden of CN alterations by driver mutational status (Figure 2c), the code used to plot and compare the burden of CN alterations between different anatomical sites (Figure 2e) and the code to see the correlation between the burden of CN alterations and TMB (Figure 2d). It also contains code to compare and plot TMB by driver mutational status (Supplementary Figure 6) and to compare the proportion of amerindian ancestry by driver mutational status (Supplementary Figure 3).
 
 * Acral_melanoma_consensus_clustering
 
@@ -35,7 +35,7 @@ This repository contains the following files:
 
 * Acral and cutaneous comparison Mexican data
 
-    This file contains the code used to generate and compare acral-cutaneous scores between samples with different BRAF mutational status in the mmexican cohort.
+    This file contains the code used to generate and compare acral-cutaneous scores between samples with different BRAF mutational status in the mexican cohort.
 
 * Acral and cutaneous comparison Newell
 
