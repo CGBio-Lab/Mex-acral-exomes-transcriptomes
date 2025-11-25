@@ -202,6 +202,8 @@ CaVEMan calls identified 2 samples with BRAF V600 mutations that were not identi
 
 Patient PD40987 had another sample (PD40987d) that had no BRAF variants identified by any tool but was manually inspected in IGV showing evidence of the mutation. We considered this sample as BRAF mutated for follow up analysis even though this is not reported in MAF files. In a similar way sample PD51928d (Lymph node metastasis) was annotated as not having a mutation in NRAS by variant calling tools, although there are reads supporting a mutation in this gene, due to this mutation being annotated as normal artefact. Normal adjacent tissue, which was used as normal, had presence of this same mutation in several reads. We also considered this sample as NRAS mutated in follow up analyses, although this is not reflected in MAF files. 
 
+Samples PD41923g, PD41913e, PD51969d, PD51928a, PD41029e and PD41896a underwent variant calling using two different normal samples (same patient, different tissues) as reflected on final maf files.  
+
 
 
 # References 
